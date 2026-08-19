@@ -8,6 +8,7 @@ import {
 } from '../types';
 import { SAMPLE_FARMER_QUERIES, PRIMARY_TOGGLE_REGIONS, BRICS_PLOTS } from '../data/mockData';
 import { TelemetryPanel } from './TelemetryPanel';
+import { authFetch } from '../services/api';
 import {
   Send,
   Sparkles,
@@ -152,7 +153,7 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot, presetQuery }: Advi
 
     try {
       // Connect to real-time Server-Sent Events (SSE) streaming pipeline
-      const response = await fetch('/api/agent/stream-pipeline', {
+      const response = await authFetch('/api/agent/stream-pipeline', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

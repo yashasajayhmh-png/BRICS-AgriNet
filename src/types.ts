@@ -12,7 +12,7 @@ export type NavigationTab =
   | 'knowledge'
   | 'architecture';
 
-export type UserRole = 'farmer' | 'extension_officer' | 'fpo_manager' | 'research_admin' | 'auditor';
+export type UserRole = 'farmer' | 'extension_officer' | 'fpo_manager' | 'research_admin' | 'auditor' | 'admin';
 
 export type SupportedLanguage =
   | 'en'

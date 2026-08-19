@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { OutbreakReport, OutbreakForecastResponse } from '../types';
 import { OUTBREAK_REPORTS } from '../data/mockData';
+import { authFetch } from '../services/api';
 import {
   AlertTriangle,
   ShieldAlert,
@@ -59,7 +60,7 @@ export function OutbreakTab() {
   // Load persistent outbreak reports from SQLite DB
   const loadOutbreakReports = async () => {
     try {
-      const res = await fetch('/api/db/outbreaks');
+      const res = await authFetch('/api/db/outbreaks');
       const json = await res.json();
       if (json.success && Array.isArray(json.data) && json.data.length > 0) {
         setReports(json.data);
@@ -88,7 +89,7 @@ export function OutbreakTab() {
   const fetchForecast = async () => {
     setIsForecasting(true);
     try {
-      const res = await fetch('/api/agent/outbreak-forecast', {
+      const res = await authFetch('/api/agent/outbreak-forecast', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -113,7 +114,7 @@ export function OutbreakTab() {
     e.preventDefault();
     setIsSubmittingReport(true);
     try {
-      const res = await fetch('/api/agent/report-outbreak', {
+      const res = await authFetch('/api/agent/report-outbreak', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newReportForm),

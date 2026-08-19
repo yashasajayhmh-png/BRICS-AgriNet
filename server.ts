@@ -1,8 +1,16 @@
 import express from "express";
 import path from "path";
+import cookieParser from "cookie-parser";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import {
+  requireAuth,
+  requireRole,
+  optionalAuth,
+  generateToken,
+  verifyToken,
+} from "./server/auth";
 import {
   getDatabase,
   dbGetDiagnosisHistory,
@@ -36,6 +44,13 @@ import {
   executeObservedGeminiCall,
 } from "./server/observability";
 import { processImageInput } from "./server/imageSecurity";
+import {
+  generalApiLimiter,
+  authLimiter,
+  geminiAiLimiter,
+  geminiVisionLimiter,
+  federatedRoundLimiter,
+} from "./server/rateLimit";
 
 dotenv.config();
 
@@ -58,6 +73,13 @@ async function startServer() {
   await getDatabase();
 
   app.use(express.json({ limit: "25mb" }));
+  app.use(cookieParser());
+
+  // Global rate limiter for all /api endpoints
+  app.use("/api", generalApiLimiter);
+
+  // Authentication rate limiter to mitigate brute-force attempts
+  app.use("/api/auth", authLimiter);
 
   // Health check endpoint
   app.get("/api/health", (_req, res) => {
@@ -66,90 +88,57 @@ async function startServer() {
       timestamp: new Date().toISOString(),
       hasKey: Boolean(process.env.GEMINI_API_KEY),
       database: "sqlite3",
+      auth: "jwt_session",
     });
   });
 
   // ==========================================
-  // PERSISTENCE (SQLITE REST ENDPOINTS)
-  // ==========================================
-
-  // Diagnosis History
-  app.get("/api/db/diagnoses", async (_req, res) => {
-    try {
-      const history = await dbGetDiagnosisHistory();
-      res.json({ success: true, data: history });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  // Escalated Tickets
-  app.get("/api/db/tickets", async (_req, res) => {
-    try {
-      const tickets = await dbGetEscalatedTickets();
-      res.json({ success: true, data: tickets });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  app.patch("/api/db/tickets/:id", async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { status, agronomistNotes, prescribedTreatment } = req.body;
-      await dbUpdateTicketStatus(id, status, agronomistNotes, prescribedTreatment);
-      res.json({ success: true });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  // Outbreak Reports
-  app.get("/api/db/outbreaks", async (_req, res) => {
-    try {
-      const reports = await dbGetOutbreakReports();
-      res.json({ success: true, data: reports });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  // Plot Telemetry
-  app.get("/api/db/plots", async (_req, res) => {
-    try {
-      const plots = await dbGetPlotsTelemetry();
-      res.json({ success: true, data: plots });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  app.put("/api/db/plots/:id", async (req, res) => {
-    try {
-      const updated = await dbSavePlotTelemetry(req.body);
-      res.json({ success: true, data: updated });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  // Federated Training History
-  app.get("/api/db/federated", async (_req, res) => {
-    try {
-      const history = await dbGetFederatedRounds();
-      res.json({ success: true, data: history });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  // ==========================================
-  // FARMER AUTHENTICATION & PROFILES (SQLite)
+  // FARMER AUTHENTICATION & TOKEN ISSUANCE
   // ==========================================
   app.get("/api/auth/farmers", async (_req, res) => {
     try {
       const farmers = await dbGetFarmers();
       res.json({ success: true, data: farmers });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Issue signed JWT token for demo profiles or fast session switching
+  app.post("/api/auth/demo-token", async (req, res) => {
+    try {
+      const { farmerId = "farmer-01" } = req.body;
+      let farmer = await dbFindFarmerById(farmerId);
+      if (!farmer) {
+        const all = await dbGetFarmers();
+        farmer = all[0] || {
+          id: "farmer-01",
+          farmerName: "Gurpreet Singh",
+          phoneOrEmail: "+91-98765-43210",
+          country: "India",
+          flag: "🇮🇳",
+          region: "Punjab (Ludhiana)",
+          cropFocus: "Wheat & Basmati Rice",
+          farmSizeHa: 3.2,
+          plotId: "in-punjab-01",
+          role: "farmer",
+          avatarUrl: "",
+        };
+      }
+
+      const token = generateToken(farmer);
+      res.cookie("agrinet_token", token, {
+        httpOnly: false, // Accessible to client-side scripts
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        sameSite: "lax",
+      });
+
+      res.json({
+        success: true,
+        token,
+        data: farmer,
+        message: `Authenticated as ${farmer.farmerName} (${farmer.role})`,
+      });
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message });
     }
@@ -175,8 +164,16 @@ async function startServer() {
         });
       }
 
+      const token = generateToken(farmer);
+      res.cookie("agrinet_token", token, {
+        httpOnly: false,
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        sameSite: "lax",
+      });
+
       res.json({
         success: true,
+        token,
         data: farmer,
         message: `Welcome back, ${farmer.farmerName}!`,
       });
@@ -211,10 +208,18 @@ async function startServer() {
       // Check if already exists
       const existing = await dbFindFarmerByPhoneOrEmail(phoneOrEmail.trim());
       if (existing) {
-        return res.status(409).json({
-          success: false,
-          error: "A farmer with this phone/email is already registered. Please sign in.",
+        const token = generateToken(existing);
+        res.cookie("agrinet_token", token, {
+          httpOnly: false,
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+          sameSite: "lax",
+        });
+
+        return res.status(200).json({
+          success: true,
+          token,
           data: existing,
+          message: "Profile already exists. Logged in successfully.",
         });
       }
 
@@ -233,10 +238,33 @@ async function startServer() {
         createdAt: new Date().toISOString(),
       });
 
+      const token = generateToken(newFarmer);
+      res.cookie("agrinet_token", token, {
+        httpOnly: false,
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        sameSite: "lax",
+      });
+
       res.json({
         success: true,
+        token,
         data: newFarmer,
         message: `Farmer registration successful! Welcome to BRICS AgriNet, ${newFarmer.farmerName}.`,
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Verify current token & return profile
+  app.get("/api/auth/me", requireAuth, async (req, res) => {
+    try {
+      const user = req.user!;
+      const fullProfile = await dbFindFarmerById(user.id);
+      res.json({
+        success: true,
+        data: fullProfile || user,
+        token: req.authToken,
       });
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message });
@@ -251,6 +279,86 @@ async function startServer() {
         return res.status(404).json({ success: false, error: "Farmer profile not found." });
       }
       res.json({ success: true, data: farmer });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post("/api/auth/logout", (_req, res) => {
+    res.clearCookie("agrinet_token");
+    res.json({ success: true, message: "Logged out successfully" });
+  });
+
+  // ==========================================
+  // PERSISTENCE (SQLITE REST ENDPOINTS - AUTH PROTECTED)
+  // ==========================================
+
+  // Diagnosis History (Protected: All authenticated users)
+  app.get("/api/db/diagnoses", requireAuth, async (_req, res) => {
+    try {
+      const history = await dbGetDiagnosisHistory();
+      res.json({ success: true, data: history });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Escalated Tickets (Protected: All authenticated users to view)
+  app.get("/api/db/tickets", requireAuth, async (_req, res) => {
+    try {
+      const tickets = await dbGetEscalatedTickets();
+      res.json({ success: true, data: tickets });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Ticket Status & Prescription Update (Authorized: Extension Officers, Admins & Researchers)
+  app.patch("/api/db/tickets/:id", requireAuth, requireRole("extension_officer", "admin", "researcher"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status, agronomistNotes, prescribedTreatment } = req.body;
+      await dbUpdateTicketStatus(id, status, agronomistNotes, prescribedTreatment);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Outbreak Reports (Protected: All authenticated users)
+  app.get("/api/db/outbreaks", requireAuth, async (_req, res) => {
+    try {
+      const reports = await dbGetOutbreakReports();
+      res.json({ success: true, data: reports });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Plot Telemetry (Protected: All authenticated users)
+  app.get("/api/db/plots", requireAuth, async (_req, res) => {
+    try {
+      const plots = await dbGetPlotsTelemetry();
+      res.json({ success: true, data: plots });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.put("/api/db/plots/:id", requireAuth, async (req, res) => {
+    try {
+      const updated = await dbSavePlotTelemetry(req.body);
+      res.json({ success: true, data: updated });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Federated Training History (Protected: All authenticated users)
+  app.get("/api/db/federated", requireAuth, async (_req, res) => {
+    try {
+      const history = await dbGetFederatedRounds();
+      res.json({ success: true, data: history });
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message });
     }
@@ -282,7 +390,7 @@ async function startServer() {
   // ==========================================
 
   // SSE Real-Time Streaming 3-Agent Pipeline
-  app.post("/api/agent/stream-pipeline", async (req, res) => {
+  app.post("/api/agent/stream-pipeline", requireAuth, geminiAiLimiter, async (req, res) => {
     // Setup Server-Sent Events (SSE) headers
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -508,7 +616,7 @@ Format with clear markdown sections:
   });
 
   // Agent 1: Agronomic Advisory Agent (Standalone endpoint)
-  app.post("/api/agent/advisory", async (req, res) => {
+  app.post("/api/agent/advisory", requireAuth, geminiAiLimiter, async (req, res) => {
     try {
       const { query, plotTelemetry } = req.body;
       const ai = getGenAIClient();
@@ -572,7 +680,7 @@ Return valid JSON with:
   });
 
   // Agent 2: Biophysical Simulation Check Agent (APSIM/DSSAT rule-based validator)
-  app.post("/api/agent/simulation-check", async (req, res) => {
+  app.post("/api/agent/simulation-check", requireAuth, geminiAiLimiter, async (req, res) => {
     try {
       const { query, plotTelemetry, candidateRecommendations } = req.body;
       const ai = getGenAIClient();
@@ -649,7 +757,7 @@ Return strictly valid JSON:
   });
 
   // Agent 3: Farmer Synthesis Agent
-  app.post("/api/agent/synthesis", async (req, res) => {
+  app.post("/api/agent/synthesis", requireAuth, geminiAiLimiter, async (req, res) => {
     try {
       const { query, plotTelemetry, advisoryResult, simulationResult } = req.body;
       const ai = getGenAIClient();
@@ -707,7 +815,7 @@ Format with clear markdown sections:
   // ==========================================
   // TAB 2: Multimodal Crop Photo Diagnosis Agent (Saved to SQLite DB)
   // ==========================================
-  app.post("/api/agent/diagnose-crop", async (req, res) => {
+  app.post("/api/agent/diagnose-crop", requireAuth, geminiVisionLimiter, async (req, res) => {
     try {
       const { imageBase64, mimeType = "image/jpeg", cropContext = "Unknown Crop", region = "BRICS Region" } = req.body;
       const ai = getGenAIClient();
@@ -804,7 +912,7 @@ Return valid JSON:
   // ==========================================
   // TAB 3: Federated Learning Commons Agent (Cross-Silo Aggregator & Saved to SQLite DB)
   // ==========================================
-  app.post("/api/agent/federated-round", async (req, res) => {
+  app.post("/api/agent/federated-round", requireAuth, requireRole("researcher", "admin", "extension_officer"), federatedRoundLimiter, async (req, res) => {
     try {
       const { roundNumber = 1, silos = [], epsilon = 0.5, aggregationMethod = "DP-FedAvg" } = req.body;
       const ai = getGenAIClient();
@@ -903,7 +1011,7 @@ Return valid JSON:
   // ==========================================
   // TAB 4: Outbreak Early-Warning Sentinel Agent (Saved to SQLite DB)
   // ==========================================
-  app.post("/api/agent/outbreak-forecast", async (req, res) => {
+  app.post("/api/agent/outbreak-forecast", requireAuth, geminiAiLimiter, async (req, res) => {
     try {
       const { reports = [], clusteringThresholdKm = 10.0, targetZone = "all" } = req.body;
       const ai = getGenAIClient();
@@ -970,7 +1078,7 @@ Return valid JSON:
     }
   });
 
-  app.post("/api/agent/report-outbreak", async (req, res) => {
+  app.post("/api/agent/report-outbreak", requireAuth, async (req, res) => {
     try {
       const { country, region, crop, pestDisease, severity, coordinates, distanceToBorderKm, neighboringCountry, verifiedBy } = req.body;
       const newReport = {
@@ -1001,7 +1109,7 @@ Return valid JSON:
   // ==========================================
   // TAB 5: Extension Copilot Endpoints (AI Triage & Cropin SmartRisk Scorer)
   // ==========================================
-  app.post("/api/agent/copilot-ai-assist", async (req, res) => {
+  app.post("/api/agent/copilot-ai-assist", requireAuth, requireRole("extension_officer", "admin", "researcher"), geminiAiLimiter, async (req, res) => {
     try {
       const { ticket, fieldNotes } = req.body;
       const ai = getGenAIClient();
@@ -1063,7 +1171,7 @@ Return valid JSON:
     }
   });
 
-  app.post("/api/agent/copilot-credit-assessment", async (req, res) => {
+  app.post("/api/agent/copilot-credit-assessment", requireAuth, requireRole("extension_officer", "admin", "researcher"), geminiAiLimiter, async (req, res) => {
     try {
       const { plotTelemetry } = req.body;
       const ai = getGenAIClient();

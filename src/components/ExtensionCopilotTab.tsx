@@ -30,6 +30,8 @@ import {
 } from 'lucide-react';
 import { ESCALATED_TICKETS, BRICS_PLOTS, RAG_GROUNDING_SOURCES } from '../data/mockData';
 import { EscalatedTicket, PlotTelemetry, CopilotAssistResponse, CreditAssessmentResponse } from '../types';
+import { authFetch } from '../services/api';
+import { getTicketsFromFirestore, getPlotsFromFirestore, updateTicketInFirestore } from '../services/firestoreService';
 
 export function ExtensionCopilotTab() {
   const [tickets, setTickets] = useState<EscalatedTicket[]>(ESCALATED_TICKETS);
@@ -40,25 +42,41 @@ export function ExtensionCopilotTab() {
   const [plots, setPlots] = useState<PlotTelemetry[]>(BRICS_PLOTS);
   const [selectedPlotForCredit, setSelectedPlotForCredit] = useState<PlotTelemetry>(BRICS_PLOTS[0]);
 
-  // Load persistent tickets and plots from SQLite DB
+  // Load persistent tickets and plots from Firestore / SQLite DB
   const loadDatabaseRecords = async () => {
     try {
-      const [ticketsRes, plotsRes] = await Promise.all([
-        fetch('/api/db/tickets'),
-        fetch('/api/db/plots'),
+      const [fsTickets, fsPlots] = await Promise.all([
+        getTicketsFromFirestore(),
+        getPlotsFromFirestore(),
       ]);
-      const ticketsJson = await ticketsRes.json();
-      if (ticketsJson.success && Array.isArray(ticketsJson.data) && ticketsJson.data.length > 0) {
-        setTickets(ticketsJson.data);
-        setSelectedTicket(ticketsJson.data[0]);
+      if (fsTickets && fsTickets.length > 0) {
+        setTickets(fsTickets);
+        setSelectedTicket(fsTickets[0]);
       }
-      const plotsJson = await plotsRes.json();
-      if (plotsJson.success && Array.isArray(plotsJson.data) && plotsJson.data.length > 0) {
-        setPlots(plotsJson.data);
-        setSelectedPlotForCredit(plotsJson.data[0]);
+      if (fsPlots && fsPlots.length > 0) {
+        setPlots(fsPlots);
+        setSelectedPlotForCredit(fsPlots[0]);
       }
     } catch (err) {
-      console.warn('Failed to fetch SQLite records for copilot:', err);
+      console.warn('Falling back to SQLite endpoint for copilot:', err);
+      try {
+        const [ticketsRes, plotsRes] = await Promise.all([
+          authFetch('/api/db/tickets'),
+          authFetch('/api/db/plots'),
+        ]);
+        const ticketsJson = await ticketsRes.json();
+        if (ticketsJson.success && Array.isArray(ticketsJson.data) && ticketsJson.data.length > 0) {
+          setTickets(ticketsJson.data);
+          setSelectedTicket(ticketsJson.data[0]);
+        }
+        const plotsJson = await plotsRes.json();
+        if (plotsJson.success && Array.isArray(plotsJson.data) && plotsJson.data.length > 0) {
+          setPlots(plotsJson.data);
+          setSelectedPlotForCredit(plotsJson.data[0]);
+        }
+      } catch (e) {
+        console.warn('Failed to fetch fallback SQLite records:', e);
+      }
     }
   };
 
@@ -78,7 +96,7 @@ export function ExtensionCopilotTab() {
   const handleRequestCopilotAssist = async () => {
     setIsCopilotDrafting(true);
     try {
-      const res = await fetch('/api/agent/copilot-ai-assist', {
+      const res = await authFetch('/api/agent/copilot-ai-assist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -106,7 +124,7 @@ export function ExtensionCopilotTab() {
   const handleRunCreditAssessment = async () => {
     setIsAssessingCredit(true);
     try {
-      const res = await fetch('/api/agent/copilot-credit-assessment', {
+      const res = await authFetch('/api/agent/copilot-credit-assessment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -149,9 +167,19 @@ export function ExtensionCopilotTab() {
       prescribedTreatment: finalPrescription,
     }));
 
-    // Persist to SQLite DB
+    // Persist to Firestore and SQLite DB
     try {
-      await fetch(`/api/db/tickets/${ticketId}`, {
+      await updateTicketInFirestore(ticketId, {
+        status: 'VERIFIED_BY_AGENT',
+        agronomistNotes: finalNotes,
+        prescribedTreatment: finalPrescription,
+      });
+    } catch (e) {
+      console.warn('Firestore ticket update fallback:', e);
+    }
+
+    try {
+      await authFetch(`/api/db/tickets/${ticketId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

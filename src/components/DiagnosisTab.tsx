@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { DiagnosisResult } from '../types';
 import { SAMPLE_LEAF_IMAGES, GROUNDING_SOURCES, SampleLeaf } from '../data/mockData';
+import { authFetch } from '../services/api';
+import { getDiagnosesFromFirestore, saveDiagnosisToFirestore } from '../services/firestoreService';
 import {
   Camera,
   Upload,
@@ -45,17 +47,22 @@ export function DiagnosisTab() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch persistent SQLite diagnosis history on mount
+  // Fetch persistent Firestore / SQLite diagnosis history on mount
   const fetchDiagnosisHistory = async () => {
     setIsLoadingHistory(true);
     try {
-      const res = await fetch('/api/db/diagnoses');
+      const firestoreHistory = await getDiagnosesFromFirestore();
+      if (firestoreHistory && firestoreHistory.length > 0) {
+        setSavedDiagnoses(firestoreHistory);
+        return;
+      }
+      const res = await authFetch('/api/db/diagnoses');
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
         setSavedDiagnoses(json.data);
       }
     } catch (err) {
-      console.warn('Failed to load SQLite diagnosis history:', err);
+      console.warn('Failed to load diagnosis history:', err);
     } finally {
       setIsLoadingHistory(false);
     }
@@ -170,7 +177,7 @@ export function DiagnosisTab() {
     setExtensionNotesSubmitted(false);
 
     try {
-      const response = await fetch('/api/agent/diagnose-crop', {
+      const response = await authFetch('/api/agent/diagnose-crop', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

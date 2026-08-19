@@ -1,0 +1,181 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Primitive helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'yashasajayhmh@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Entity validation blueprints
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['id', 'name', 'email', 'role', 'country', 'createdAt']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 120 &&
+        data.email is string && data.email.size() > 0 && data.email.size() <= 160 &&
+        data.role in ['farmer', 'extension_officer', 'admin', 'researcher'] &&
+        data.country is string && data.country.size() <= 80 &&
+        data.createdAt is string && data.createdAt.size() <= 80;
+    }
+
+    function isValidCropDiagnosis(data) {
+      return data.keys().hasAll(['id', 'userId', 'crop', 'disease', 'confidence', 'createdAt']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.userId is string && data.userId.size() <= 128 &&
+        data.crop is string && data.crop.size() <= 80 &&
+        data.disease is string && data.disease.size() <= 120 &&
+        data.confidence is number && data.confidence >= 0 && data.confidence <= 1 &&
+        data.createdAt is string && data.createdAt.size() <= 80;
+    }
+
+    function isValidEscalatedTicket(data) {
+      return data.keys().hasAll(['id', 'farmerId', 'farmerName', 'crop', 'issue', 'urgency', 'status', 'createdAt']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.farmerId is string && data.farmerId.size() <= 128 &&
+        data.farmerName is string && data.farmerName.size() <= 120 &&
+        data.crop is string && data.crop.size() <= 80 &&
+        data.issue is string && data.issue.size() <= 500 &&
+        data.urgency in ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] &&
+        data.status in ['PENDING_REVIEW', 'IN_PROGRESS', 'VERIFIED_BY_AGENT', 'RESOLVED'] &&
+        data.createdAt is string && data.createdAt.size() <= 80;
+    }
+
+    function isValidPlotTelemetry(data) {
+      return data.keys().hasAll(['id', 'name', 'country', 'crop', 'soilMoisture', 'ph', 'ndviIndex']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.name is string && data.name.size() <= 120 &&
+        data.country is string && data.country.size() <= 80 &&
+        data.crop is string && data.crop.size() <= 80 &&
+        data.soilMoisture is number &&
+        data.ph is number &&
+        data.ndviIndex is number;
+    }
+
+    function isValidOutbreakReport(data) {
+      return data.keys().hasAll(['id', 'country', 'region', 'crop', 'pestDisease', 'severity', 'distanceToBorderKm', 'reportedAt']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.country is string && data.country.size() <= 80 &&
+        data.region is string && data.region.size() <= 160 &&
+        data.crop is string && data.crop.size() <= 80 &&
+        data.pestDisease is string && data.pestDisease.size() <= 160 &&
+        data.severity in ['Low', 'Moderate', 'Severe', 'Critical'] &&
+        data.distanceToBorderKm is number &&
+        data.reportedAt is string && data.reportedAt.size() <= 80;
+    }
+
+    function isValidFederatedRound(data) {
+      return data.keys().hasAll(['id', 'roundNumber', 'globalAccuracy', 'epsilonUsed', 'sovereignCertificate']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.roundNumber is number &&
+        data.globalAccuracy is number &&
+        data.epsilonUsed is number &&
+        data.sovereignCertificate is string && data.sovereignCertificate.size() <= 200;
+    }
+
+    // 1. Users collection
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isSignedIn();
+      allow create: if isValidId(userId) && isOwner(userId) && isValidUserProfile(incoming());
+      allow update: if isValidId(userId) && (isOwner(userId) || isAdmin()) && isValidUserProfile(incoming()) &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'country', 'farmLocation', 'cropFocus', 'language', 'role']);
+      allow delete: if isValidId(userId) && isAdmin();
+    }
+
+    // 2. Crop Diagnoses collection
+    match /diagnoses/{diagnosisId} {
+      allow get: if isValidId(diagnosisId) && isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isValidId(diagnosisId) && isSignedIn() &&
+        incoming().userId == request.auth.uid &&
+        isValidCropDiagnosis(incoming());
+      allow update: if isValidId(diagnosisId) && (existing().userId == request.auth.uid || isAdmin()) &&
+        isValidCropDiagnosis(incoming()) &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['advisory', 'pesticideRiskScore', 'bricsHarmonizedMRL']);
+      allow delete: if isValidId(diagnosisId) && (existing().userId == request.auth.uid || isAdmin());
+    }
+
+    // 3. Escalated Tickets collection
+    match /tickets/{ticketId} {
+      allow get: if isValidId(ticketId) && isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isValidId(ticketId) && isSignedIn() &&
+        incoming().farmerId == request.auth.uid &&
+        isValidEscalatedTicket(incoming());
+      allow update: if isValidId(ticketId) && isSignedIn() &&
+        isValidEscalatedTicket(incoming()) && (
+          // Action 1: Extension officer / Admin triage & prescription
+          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'agronomistNotes', 'prescribedTreatment', 'assignedTo', 'updatedAt']) ||
+          // Action 2: Farmer edits ticket issue
+          (existing().farmerId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['issue', 'urgency', 'updatedAt']))
+        );
+      allow delete: if isValidId(ticketId) && (existing().farmerId == request.auth.uid || isAdmin());
+    }
+
+    // 4. Plots Telemetry collection
+    match /plots/{plotId} {
+      allow get: if isValidId(plotId);
+      allow list: if true;
+      allow create: if isValidId(plotId) && isSignedIn() && isValidPlotTelemetry(incoming());
+      allow update: if isValidId(plotId) && isSignedIn() && isValidPlotTelemetry(incoming()) &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'soilMoisture', 'soilTemperature', 'nitrogenPPM', 'phosphorusPPM', 'potassiumPPM',
+          'ph', 'ndviIndex', 'weatherSummary', 'alertsCount', 'updatedAt'
+        ]);
+      allow delete: if isValidId(plotId) && isAdmin();
+    }
+
+    // 5. Outbreak Reports collection
+    match /outbreaks/{outbreakId} {
+      allow get: if isValidId(outbreakId);
+      allow list: if true;
+      allow create: if isValidId(outbreakId) && isSignedIn() && isValidOutbreakReport(incoming());
+      allow update: if isValidId(outbreakId) && isSignedIn() && isValidOutbreakReport(incoming()) &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['severity', 'pestDisease', 'distanceToBorderKm', 'verifiedBy']);
+      allow delete: if isValidId(outbreakId) && isAdmin();
+    }
+
+    // 6. Federated Rounds collection
+    match /federated_rounds/{roundId} {
+      allow get: if isValidId(roundId);
+      allow list: if true;
+      allow create: if isValidId(roundId) && isSignedIn() && isValidFederatedRound(incoming());
+      allow update: if isValidId(roundId) && isSignedIn() && isValidFederatedRound(incoming()) &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['globalAccuracy', 'nonIIDDivergence', 'epsilonUsed', 'coordinatorNotes', 'sovereignCertificate']);
+      allow delete: if isValidId(roundId) && isAdmin();
+    }
+
+    // 7. Connection test doc
+    match /test/{testId} {
+      allow read, write: if true;
+    }
+  }
+}

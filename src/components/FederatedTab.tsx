@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NationSilo } from '../types';
 import { INITIAL_NATION_SILOS } from '../data/mockData';
+import { authFetch } from '../services/api';
 import {
   Network,
   Play,
@@ -48,7 +49,7 @@ export function FederatedTab() {
 
   // Load latest state from SQLite DB
   useEffect(() => {
-    fetch('/api/db/federated')
+    authFetch('/api/db/federated')
       .then((res) => res.json())
       .then((json) => {
         if (json.success && Array.isArray(json.data) && json.data.length > 0) {
@@ -79,7 +80,7 @@ export function FederatedTab() {
     const nextRound = currentRound + 1;
 
     // Trigger real backend API call in background while animation plays
-    const apiPromise = fetch('/api/agent/federated-round', {
+    const apiPromise = authFetch('/api/agent/federated-round', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

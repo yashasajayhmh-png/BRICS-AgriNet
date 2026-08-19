@@ -22,6 +22,9 @@ import { KnowledgeTab } from './components/KnowledgeTab';
 import { AuthModal } from './components/AuthModal';
 import { CommandPalette } from './components/CommandPalette';
 import { FarmerControlBar } from './components/FarmerControlBar';
+import { authFetch, removeStoredAuthToken, setStoredAuthToken } from './services/api';
+import { auth, onAuthStateChanged } from './lib/firebase';
+import { subscribePlots, getPlotsFromFirestore } from './services/firestoreService';
 import { Sprout, Globe } from 'lucide-react';
 
 export default function App() {
@@ -64,25 +67,55 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Load persistent plots from SQLite DB
+  // Listen to Firebase Auth state changes
   useEffect(() => {
-    fetch('/api/db/plots')
-      .then((res) => res.json())
-      .then((json) => {
-        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-          setPlots(json.data);
-          // If current farmer has a plotId, find that plot
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          const token = await firebaseUser.getIdToken();
+          setStoredAuthToken(token);
+        } catch (e) {
+          console.warn('Firebase token retrieval error:', e);
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Load persistent plots from Firestore with fallback to local backend API
+  useEffect(() => {
+    // 1. Initial load from Firestore
+    getPlotsFromFirestore()
+      .then((loadedPlots) => {
+        if (loadedPlots && loadedPlots.length > 0) {
+          setPlots(loadedPlots);
           if (currentFarmer?.plotId) {
-            const match = json.data.find((p: PlotTelemetry) => p.id === currentFarmer.plotId);
+            const match = loadedPlots.find((p) => p.id === currentFarmer.plotId);
             if (match) setSelectedPlot(match);
-            else setSelectedPlot(json.data[0]);
-          } else {
-            setSelectedPlot(json.data[0]);
           }
         }
       })
-      .catch((err) => console.warn('Could not load SQLite plots:', err));
-  }, []);
+      .catch(() => {
+        // Fallback to backend API
+        authFetch('/api/db/plots')
+          .then((res) => res.json())
+          .then((json) => {
+            if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+              setPlots(json.data);
+            }
+          })
+          .catch(() => {});
+      });
+
+    // 2. Real-time Firestore subscription
+    const unsubscribePlots = subscribePlots((updatedPlots) => {
+      setPlots(updatedPlots);
+    });
+
+    return () => {
+      if (unsubscribePlots) unsubscribePlots();
+    };
+  }, [currentFarmer?.plotId]);
 
   const handleLoginSuccess = (farmer: FarmerProfile) => {
     setCurrentFarmer(farmer);
@@ -106,6 +139,7 @@ export default function App() {
 
   const handleSignOut = () => {
     setCurrentFarmer(null);
+    removeStoredAuthToken();
     try {
       localStorage.removeItem('agrinet_active_farmer');
     } catch {
