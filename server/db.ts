@@ -1,8 +1,8 @@
 import initSqlJs, { Database } from "sql.js";
 import fs from "fs";
 import path from "path";
-import { INITIAL_NATION_SILOS, ESCALATED_TICKETS, OUTBREAK_REPORTS, BRICS_PLOTS } from "../src/data/mockData";
-import { EscalatedTicket, OutbreakReport, PlotTelemetry, DiagnosisResult } from "../src/types";
+import { INITIAL_NATION_SILOS, ESCALATED_TICKETS, OUTBREAK_REPORTS, BRICS_PLOTS, DEMO_FARMERS } from "../src/data/mockData";
+import { EscalatedTicket, OutbreakReport, PlotTelemetry, DiagnosisResult, FarmerProfile } from "../src/types";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const DB_FILE = path.join(DATA_DIR, "agrinet.sqlite");
@@ -139,7 +139,43 @@ function initSchemaAndSeed(db: Database): void {
       sovereign_certificate TEXT,
       silos_state TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS farmers (
+      id TEXT PRIMARY KEY,
+      farmer_name TEXT NOT NULL,
+      phone_or_email TEXT NOT NULL UNIQUE,
+      country TEXT,
+      flag TEXT,
+      region TEXT,
+      crop_focus TEXT,
+      farm_size_ha REAL,
+      plot_id TEXT,
+      role TEXT,
+      avatar_url TEXT,
+      created_at TEXT
+    );
   `);
+
+  // Seed initial demo farmers
+  for (const f of DEMO_FARMERS) {
+    db.run(
+      `INSERT OR IGNORE INTO farmers VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        f.id,
+        f.farmerName,
+        f.phoneOrEmail,
+        f.country,
+        f.flag,
+        f.region,
+        f.cropFocus,
+        f.farmSizeHa,
+        f.plotId,
+        f.role,
+        f.avatarUrl || "",
+        new Date().toISOString(),
+      ]
+    );
+  }
 
   // Seed initial tickets
   for (const t of ESCALATED_TICKETS) {
@@ -546,4 +582,110 @@ export async function dbSaveFederatedRound(roundData: any): Promise<void> {
     ]
   );
   saveDatabase();
+}
+
+export async function dbGetFarmers(): Promise<FarmerProfile[]> {
+  const db = await getDatabase();
+  const stmt = db.prepare("SELECT * FROM farmers ORDER BY created_at ASC");
+  const results: FarmerProfile[] = [];
+  while (stmt.step()) {
+    const row = stmt.getAsObject();
+    results.push({
+      id: row.id as string,
+      farmerName: row.farmer_name as string,
+      phoneOrEmail: row.phone_or_email as string,
+      country: (row.country as string) || "India",
+      flag: (row.flag as string) || "🇮🇳",
+      region: (row.region as string) || "",
+      cropFocus: (row.crop_focus as string) || "",
+      farmSizeHa: (row.farm_size_ha as number) || 1.0,
+      plotId: (row.plot_id as string) || "in-punjab-01",
+      role: ((row.role as string) || "farmer") as any,
+      avatarUrl: row.avatar_url as string,
+      createdAt: row.created_at as string,
+    });
+  }
+  stmt.free();
+  return results;
+}
+
+export async function dbFindFarmerById(id: string): Promise<FarmerProfile | null> {
+  const db = await getDatabase();
+  const stmt = db.prepare("SELECT * FROM farmers WHERE id = ? LIMIT 1");
+  stmt.bind([id]);
+  let farmer: FarmerProfile | null = null;
+  if (stmt.step()) {
+    const row = stmt.getAsObject();
+    farmer = {
+      id: row.id as string,
+      farmerName: row.farmer_name as string,
+      phoneOrEmail: row.phone_or_email as string,
+      country: (row.country as string) || "India",
+      flag: (row.flag as string) || "🇮🇳",
+      region: (row.region as string) || "",
+      cropFocus: (row.crop_focus as string) || "",
+      farmSizeHa: (row.farm_size_ha as number) || 1.0,
+      plotId: (row.plot_id as string) || "in-punjab-01",
+      role: ((row.role as string) || "farmer") as any,
+      avatarUrl: row.avatar_url as string,
+      createdAt: row.created_at as string,
+    };
+  }
+  stmt.free();
+  return farmer;
+}
+
+export async function dbFindFarmerByPhoneOrEmail(identifier: string): Promise<FarmerProfile | null> {
+  const db = await getDatabase();
+  const cleanId = identifier.trim().toLowerCase();
+  const stmt = db.prepare("SELECT * FROM farmers WHERE LOWER(phone_or_email) = ? LIMIT 1");
+  stmt.bind([cleanId]);
+  let farmer: FarmerProfile | null = null;
+  if (stmt.step()) {
+    const row = stmt.getAsObject();
+    farmer = {
+      id: row.id as string,
+      farmerName: row.farmer_name as string,
+      phoneOrEmail: row.phone_or_email as string,
+      country: (row.country as string) || "India",
+      flag: (row.flag as string) || "🇮🇳",
+      region: (row.region as string) || "",
+      cropFocus: (row.crop_focus as string) || "",
+      farmSizeHa: (row.farm_size_ha as number) || 1.0,
+      plotId: (row.plot_id as string) || "in-punjab-01",
+      role: ((row.role as string) || "farmer") as any,
+      avatarUrl: row.avatar_url as string,
+      createdAt: row.created_at as string,
+    };
+  }
+  stmt.free();
+  return farmer;
+}
+
+export async function dbSaveFarmer(farmer: FarmerProfile): Promise<FarmerProfile> {
+  const db = await getDatabase();
+  const record = {
+    ...farmer,
+    id: farmer.id || `farmer-${Date.now()}`,
+    createdAt: farmer.createdAt || new Date().toISOString(),
+  };
+  db.run(
+    `INSERT OR REPLACE INTO farmers VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      record.id,
+      record.farmerName,
+      record.phoneOrEmail.trim().toLowerCase(),
+      record.country || "India",
+      record.flag || "🇮🇳",
+      record.region || "Agricultural Belt",
+      record.cropFocus || "Mixed Crops",
+      record.farmSizeHa || 2.5,
+      record.plotId || "in-punjab-01",
+      record.role || "farmer",
+      record.avatarUrl || "",
+      record.createdAt,
+    ]
+  );
+  saveDatabase();
+  return record;
 }

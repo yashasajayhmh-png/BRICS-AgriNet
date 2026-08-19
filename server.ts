@@ -15,6 +15,10 @@ import {
   dbSavePlotTelemetry,
   dbGetFederatedRounds,
   dbSaveFederatedRound,
+  dbGetFarmers,
+  dbFindFarmerById,
+  dbFindFarmerByPhoneOrEmail,
+  dbSaveFarmer,
 } from "./server/db";
 import {
   getFallbackDiagnosis,
@@ -134,6 +138,119 @@ async function startServer() {
     try {
       const history = await dbGetFederatedRounds();
       res.json({ success: true, data: history });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // ==========================================
+  // FARMER AUTHENTICATION & PROFILES (SQLite)
+  // ==========================================
+  app.get("/api/auth/farmers", async (_req, res) => {
+    try {
+      const farmers = await dbGetFarmers();
+      res.json({ success: true, data: farmers });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { identifier } = req.body;
+      if (!identifier || typeof identifier !== "string") {
+        return res.status(400).json({ success: false, error: "Identifier (phone, email, or farmer ID) is required." });
+      }
+
+      // Try finding by direct ID first, then by email/phone
+      let farmer = await dbFindFarmerById(identifier.trim());
+      if (!farmer) {
+        farmer = await dbFindFarmerByPhoneOrEmail(identifier.trim());
+      }
+
+      if (!farmer) {
+        return res.status(404).json({
+          success: false,
+          error: "Farmer profile not found. Please register or select a demo profile.",
+        });
+      }
+
+      res.json({
+        success: true,
+        data: farmer,
+        message: `Welcome back, ${farmer.farmerName}!`,
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post("/api/auth/register", async (req, res) => {
+    try {
+      const {
+        farmerName,
+        phoneOrEmail,
+        country = "India",
+        flag = "🇮🇳",
+        region = "Agricultural Belt",
+        cropFocus = "Mixed Farming",
+        farmSizeHa = 2.0,
+        plotId = "in-punjab-01",
+        role = "farmer",
+        avatarUrl = "",
+      } = req.body;
+
+      if (!farmerName || !farmerName.trim()) {
+        return res.status(400).json({ success: false, error: "Farmer name is required." });
+      }
+
+      if (!phoneOrEmail || !phoneOrEmail.trim()) {
+        return res.status(400).json({ success: false, error: "Phone number or email is required." });
+      }
+
+      // Check if already exists
+      const existing = await dbFindFarmerByPhoneOrEmail(phoneOrEmail.trim());
+      if (existing) {
+        return res.status(409).json({
+          success: false,
+          error: "A farmer with this phone/email is already registered. Please sign in.",
+          data: existing,
+        });
+      }
+
+      const newFarmer = await dbSaveFarmer({
+        id: `farmer-${Date.now()}`,
+        farmerName: farmerName.trim(),
+        phoneOrEmail: phoneOrEmail.trim().toLowerCase(),
+        country,
+        flag,
+        region,
+        cropFocus,
+        farmSizeHa: Number(farmSizeHa) || 1.0,
+        plotId: plotId || "in-punjab-01",
+        role: (role === "extension_officer" ? "extension_officer" : "farmer") as any,
+        avatarUrl,
+        createdAt: new Date().toISOString(),
+      });
+
+      res.json({
+        success: true,
+        data: newFarmer,
+        message: `Farmer registration successful! Welcome to BRICS AgriNet, ${newFarmer.farmerName}.`,
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.get("/api/auth/me/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const farmer = await dbFindFarmerById(id);
+      if (!farmer) {
+        return res.status(404).json({ success: false, error: "Farmer profile not found." });
+      }
+      res.json({ success: true, data: farmer });
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message });
     }

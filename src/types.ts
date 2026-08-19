@@ -1,10 +1,297 @@
 export type NavigationTab =
+  | 'landing'
   | 'advisory'
   | 'diagnosis'
+  | 'satellite_soil'
+  | 'farm_profile'
   | 'copilot'
+  | 'fpo_marketplace'
   | 'federated'
   | 'outbreak'
+  | 'governance_api'
+  | 'knowledge'
   | 'architecture';
+
+export type UserRole = 'farmer' | 'extension_officer' | 'fpo_manager' | 'research_admin' | 'auditor';
+
+export type SupportedLanguage =
+  | 'en'
+  | 'hi'
+  | 'mr'
+  | 'te'
+  | 'pt'
+  | 'es'
+  | 'sw'
+  | 'zh'
+  | 'ar'
+  | 'am'
+  | 'ru';
+
+export interface FarmerProfile {
+  id: string;
+  farmerName: string;
+  phoneOrEmail: string;
+  country: string;
+  flag: string;
+  region: string;
+  cropFocus: string;
+  farmSizeHa: number;
+  plotId: string;
+  role: UserRole;
+  language?: SupportedLanguage;
+  createdAt?: string;
+  avatarUrl?: string;
+}
+
+export interface RegenerativePractice {
+  id: string;
+  name: string;
+  category: 'Cover Crop' | 'Biochar' | 'Crop Rotation' | 'Zero-Till' | 'Agroforestry' | 'Bio-NPK';
+  description: string;
+  carbonSequestrationTonsHaYear: number;
+  nitrogenFixationKgHa: number;
+  soilMicrobialBiomassDeltaPct: number;
+  biodiversityScoreGain: number; // 0 - 100
+  recommendedCrops: string[];
+  climateZone: string;
+}
+
+export interface SoilHealthTelemetry {
+  plotId: string;
+  soilPH: number;
+  nitrogenKgHa: number;
+  phosphorusKgHa: number;
+  potassiumKgHa: number;
+  organicCarbonSOCPct: number;
+  electroConductivityEC: number; // dS/m
+  zincPpm: number;
+  boronPpm: number;
+  ironPpm: number;
+  cationExchangeCapacityCEC: number; // meq/100g
+  soilDegradationIndex: number; // 0 (pristine) - 100 (heavily degraded)
+  soilTexture: 'Clay Loam' | 'Sandy Loam' | 'Black Cotton Vertisol' | 'Laterite' | 'Alluvial';
+  remediationPlan: string[];
+  lastTestedDate: string;
+}
+
+export interface SatelliteSpectralData {
+  plotId: string;
+  satelliteSensor: 'Sentinel-2 MSI' | 'Landsat-9 OLI' | 'PlanetScope 3m';
+  ndviCurrent: number;
+  ndviTrend: number[]; // 6-week values
+  ndreRedEdgeCurrent: number; // Red Edge Chlorophyll Index
+  soilMoistureIndexSMI: number; // 0.00 - 1.00
+  landSurfaceTempCelsius: number;
+  enhancedVegetationIndexEVI: number;
+  cloudCoveragePercent: number;
+  tileId: string;
+  lastPassDate: string;
+}
+
+export interface WeatherForecastAlert {
+  day: string;
+  date: string;
+  tempMinC: number;
+  tempMaxC: number;
+  rainfallMm: number;
+  humidityPct: number;
+  windSpeedKmh: number;
+  solarRadiationMjM2: number;
+  evapotranspirationET0: number; // mm/day
+  growingDegreeDaysGDD: number;
+  droughtRiskIndex: 'Low' | 'Moderate' | 'Severe' | 'Critical';
+  frostAlert: boolean;
+  pestSporeRiskAlert: boolean;
+  sprayRecommendation: 'Favorable Spray Window' | 'Avoid Spraying (High Wind/Rain)' | 'Urgent Preventive Bio-Spray';
+}
+
+export interface YieldPredictionResult {
+  plotId: string;
+  crop: string;
+  baselineHistoricalYieldTonsHa: number;
+  aiPredictedYieldTonsHa: number;
+  optimisticYieldTonsHa: number;
+  pessimisticYieldTonsHa: number;
+  confidenceScorePct: number;
+  projectedHarvestDate: string;
+  limitingFactors: string[];
+  whatIfSensitivity: {
+    nitrogenBoostPlus20Pct: number;
+    additionalIrrigationPlus30Mm: number;
+    delayPlantingMinus10Days: number;
+  };
+}
+
+export interface FarmerFeedbackEntry {
+  id: string;
+  targetId: string; // advisory or diagnosis id
+  farmerId: string;
+  farmerName: string;
+  plotName: string;
+  ratingScore: number; // 1 - 5
+  isConfirmedAccurate: boolean;
+  fieldOutcomeNote: string;
+  actualHarvestYieldTonsHa?: number;
+  timestamp: string;
+  verifiedByKVK?: boolean;
+}
+
+export interface FarmFieldProfile {
+  id: string;
+  farmerId: string;
+  fieldName: string;
+  boundaryGeoJson: {
+    type: 'Polygon';
+    coordinates: [number, number][];
+  };
+  areaHa: number;
+  soilTexture: string;
+  irrigationType: 'Drip Micro-irrigation' | 'Solar Canal' | 'Sprinkler' | 'Rainfed Lowland';
+  cropHistory: { season: string; crop: string; yieldTons: number }[];
+  fieldHealthScore: number;
+  hasSoilSensorConnected: boolean;
+}
+
+export interface PushAlertNotification {
+  id: string;
+  timestamp: string;
+  title: string;
+  body: string;
+  severity: 'info' | 'warning' | 'critical';
+  category: 'weather' | 'pest' | 'market' | 'advisory';
+  read: boolean;
+  actionTab?: NavigationTab;
+}
+
+export interface DataSourceConnector {
+  id: string;
+  name: string;
+  category: 'Satellite Imagery' | 'Weather & Agrometeorology' | 'Soil Data' | 'National Agronomy Repository';
+  institution: string;
+  status: 'CONNECTED' | 'SYNCING' | 'ERROR' | 'OFFLINE';
+  latencyMs: number;
+  lastSyncTimestamp: string;
+  recordsIngested24h: number;
+  endpointUrl: string;
+}
+
+export interface ModelMonitoringTelemetry {
+  modelId: string;
+  modelName: string;
+  architecture: string;
+  currentF1Score: number;
+  driftMetricPSI: number; // Population Stability Index
+  validationLossHistory: number[];
+  lastRetrainedDate: string;
+  dpEpsilonConsumed: number;
+  federatedNodesOnline: number;
+  trainingStatus: 'READY' | 'TRAINING' | 'EVALUATING';
+}
+
+export interface AgronomistAdvisoryTemplate {
+  id: string;
+  title: string;
+  crop: string;
+  targetPestOrNutrient: string;
+  region: string;
+  recommendedSteps: string[];
+  organicAlternative: string;
+  chemicalAlternative: string;
+  authorAgronomist: string;
+  approvalStatus: 'APPROVED' | 'DRAFT' | 'ARCHIVED';
+  updatedAt: string;
+}
+
+export interface OpenApiEndpointDoc {
+  path: string;
+  method: 'GET' | 'POST' | 'PATCH';
+  summary: string;
+  description: string;
+  queryParams?: string[];
+  sampleRequestJson?: string;
+  sampleResponseJson: string;
+}
+
+export interface BricsDataStandard {
+  schemaName: string;
+  standardBody: 'AgGateway ADAPT' | 'ICASA Standard' | 'Darwin Core Agronomy' | 'ISO 19156';
+  description: string;
+  sampleJson: string;
+  fieldsCount: number;
+}
+
+export interface CrossBorderModelRegistry {
+  modelId: string;
+  name: string;
+  version: string;
+  hostSilo: string;
+  country: string;
+  flag: string;
+  sha256Checksum: string;
+  parametersMillion: number;
+  dpBudgetEpsilon: number;
+  verifiedByConsortium: boolean;
+  lastUpdated: string;
+}
+
+export interface FarmerConsentSettings {
+  shareGpsForAdvisories: boolean;
+  shareSoilTestAnonymously: boolean;
+  shareCropImageryForResearch: boolean;
+  allowFederatedGradients: boolean;
+  optInSmsAlerts: boolean;
+  lastUpdated: string;
+}
+
+export interface ComplianceAuditLog {
+  id: string;
+  timestamp: string;
+  actorId: string;
+  actorRole: string;
+  actionType: 'DATA_ACCESS' | 'CROSS_BORDER_EXCHANGE' | 'MODEL_INFERENCE' | 'CONSENT_CHANGE' | 'EXPORT';
+  resourceTarget: string;
+  cryptographicHash: string;
+  status: 'SUCCESS' | 'FLAGGED';
+}
+
+export interface FpoCooperative {
+  id: string;
+  name: string;
+  region: string;
+  country: string;
+  flag: string;
+  memberFarmerCount: number;
+  totalHa: number;
+  primaryCrops: string[];
+  collectiveYieldForecastTons: number;
+  bulkOrderDiscountsActive: number;
+  aggregateCreditRating: string;
+}
+
+export interface MarketplaceItem {
+  id: string;
+  type: 'input_supplier' | 'insurance' | 'buyer';
+  name: string;
+  provider: string;
+  rating: number;
+  priceOrRate: string;
+  description: string;
+  certifiedOrganicOrGovt: boolean;
+  contactOrPurchaseAction: string;
+  country: string;
+  flag: string;
+}
+
+export interface KnowledgeArticle {
+  id: string;
+  title: string;
+  category: 'Regenerative Farming' | 'Pest Control' | 'Soil Management' | 'Climate Resilience';
+  readTimeMinutes: number;
+  languagesAvailable: string[];
+  summary: string;
+  contentMarkdown: string;
+  practicalActionChecklist: string[];
+}
 
 export interface EpisodicMemoryEvent {
   season: string;

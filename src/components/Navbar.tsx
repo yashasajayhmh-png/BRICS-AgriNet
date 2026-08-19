@@ -1,5 +1,5 @@
 import React, { KeyboardEvent } from 'react';
-import { NavigationTab } from '../types';
+import { NavigationTab, FarmerProfile } from '../types';
 import {
   Sprout,
   MessageSquare,
@@ -9,14 +9,32 @@ import {
   Info,
   Radio,
   UserCheck,
+  Globe,
+  User,
+  LogIn,
+  LogOut,
+  Sparkles,
+  LayoutDashboard,
+  Search,
 } from 'lucide-react';
 
 interface NavbarProps {
   activeTab: NavigationTab;
   setActiveTab: (tab: NavigationTab) => void;
+  currentFarmer: FarmerProfile | null;
+  onOpenAuth: () => void;
+  onSignOut: () => void;
+  onOpenSearch: () => void;
 }
 
-export function Navbar({ activeTab, setActiveTab }: NavbarProps) {
+export function Navbar({
+  activeTab,
+  setActiveTab,
+  currentFarmer,
+  onOpenAuth,
+  onSignOut,
+  onOpenSearch,
+}: NavbarProps) {
   const navItems: {
     id: NavigationTab;
     label: string;
@@ -24,11 +42,17 @@ export function Navbar({ activeTab, setActiveTab }: NavbarProps) {
     badgeText?: string;
     badgeType?: 'live' | 'copilot' | 'sim';
   }[] = [
+    { id: 'landing', label: 'Overview', icon: LayoutDashboard },
     { id: 'advisory', label: 'Farmer Advisory', icon: MessageSquare, badgeText: 'LIVE AI', badgeType: 'live' },
     { id: 'diagnosis', label: 'Crop Diagnosis', icon: Camera, badgeText: 'LIVE AI', badgeType: 'live' },
+    { id: 'satellite_soil', label: 'Satellite & Soil', icon: Sprout, badgeText: 'SENTINEL-2', badgeType: 'live' },
+    { id: 'farm_profile', label: 'Farm Profile', icon: Globe, badgeText: 'GEOJSON', badgeType: 'copilot' },
     { id: 'copilot', label: 'Extension Copilot', icon: UserCheck, badgeText: 'COPILOT', badgeType: 'copilot' },
+    { id: 'fpo_marketplace', label: 'FPO & Marketplace', icon: Sparkles, badgeText: 'HUB', badgeType: 'copilot' },
     { id: 'federated', label: 'Federated Commons', icon: Network, badgeText: 'SIMULATED', badgeType: 'sim' },
-    { id: 'outbreak', label: 'Outbreak Early-Warning', icon: AlertTriangle, badgeText: 'SIMULATED', badgeType: 'sim' },
+    { id: 'outbreak', label: 'Outbreak Early-Warning', icon: AlertTriangle, badgeText: 'RADAR', badgeType: 'sim' },
+    { id: 'governance_api', label: 'Open API & Standards', icon: Radio, badgeText: 'STANDARDS', badgeType: 'sim' },
+    { id: 'knowledge', label: 'Knowledge Base', icon: Info, badgeText: 'GUIDES', badgeType: 'sim' },
     { id: 'architecture', label: 'Architecture & Scope', icon: Info },
   ];
 
@@ -84,13 +108,13 @@ export function Navbar({ activeTab, setActiveTab }: NavbarProps) {
 
       {/* Main Navigation Header */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+        <div className="flex items-center justify-between h-16 gap-4">
           {/* Logo & Title */}
           <button
             type="button"
-            onClick={() => setActiveTab('advisory')}
-            aria-label="BRICS AgriNet Home - Go to Farmer Advisory"
-            className="flex items-center gap-3 text-left focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:rounded-lg p-1"
+            onClick={() => setActiveTab('landing')}
+            aria-label="BRICS AgriNet Home - Go to Overview"
+            className="flex items-center gap-3 text-left focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:rounded-lg p-1 shrink-0"
           >
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-800 flex items-center justify-center shadow-inner border border-emerald-500/30" aria-hidden="true">
               <Sprout className="w-6 h-6 text-emerald-100" />
@@ -100,8 +124,8 @@ export function Navbar({ activeTab, setActiveTab }: NavbarProps) {
                 <span className="font-bold text-lg tracking-tight text-white font-serif">
                   BRICS AgriNet
                 </span>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                  Global South Alliance
+                <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 hidden sm:inline-block">
+                  Global South
                 </span>
               </div>
               <p className="text-xs text-stone-400 hidden sm:block">
@@ -111,12 +135,12 @@ export function Navbar({ activeTab, setActiveTab }: NavbarProps) {
           </button>
 
           {/* Nav Tabs */}
-          <nav aria-label="Main Navigation" role="navigation">
+          <nav aria-label="Main Navigation" role="navigation" className="flex-1 overflow-hidden min-w-0">
             <div
               role="tablist"
               aria-label="Platform Views"
               onKeyDown={handleKeyDown}
-              className="flex space-x-1 sm:space-x-2 overflow-x-auto py-1 scrollbar-none"
+              className="section-scrollbar flex space-x-1 sm:space-x-1.5 overflow-x-auto py-1"
             >
               {navItems.map((item) => {
                 const Icon = item.icon;
@@ -133,26 +157,26 @@ export function Navbar({ activeTab, setActiveTab }: NavbarProps) {
                     tabIndex={isActive ? 0 : -1}
                     aria-label={accessibleLabel}
                     onClick={() => setActiveTab(item.id)}
-                    className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-emerald-400 ${
+                    className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-emerald-400 ${
                       isActive
                         ? 'bg-emerald-700/90 text-white shadow-sm ring-1 ring-emerald-500/50'
                         : 'text-stone-300 hover:bg-stone-800 hover:text-white'
                     }`}
                   >
-                    <Icon className={`w-4 h-4 ${isActive ? 'text-emerald-300' : 'text-stone-400'}`} aria-hidden="true" />
+                    <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-emerald-300' : 'text-stone-400'}`} aria-hidden="true" />
                     <span>{item.label}</span>
                     {item.badgeType === 'live' && (
-                      <span className="hidden md:inline-block text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-700/60" aria-hidden="true">
+                      <span className="hidden lg:inline-block text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-700/60" aria-hidden="true">
                         LIVE
                       </span>
                     )}
                     {item.badgeType === 'copilot' && (
-                      <span className="hidden md:inline-block text-[9px] font-bold px-1.5 py-0.5 rounded bg-teal-950 text-teal-300 border border-teal-700/60" aria-hidden="true">
+                      <span className="hidden lg:inline-block text-[9px] font-bold px-1.5 py-0.5 rounded bg-teal-950 text-teal-300 border border-teal-700/60" aria-hidden="true">
                         COPILOT
                       </span>
                     )}
                     {item.badgeType === 'sim' && (
-                      <span className="hidden md:inline-block text-[9px] font-bold px-1.5 py-0.5 rounded bg-stone-800 text-stone-400 border border-stone-700" aria-hidden="true">
+                      <span className="hidden lg:inline-block text-[9px] font-bold px-1.5 py-0.5 rounded bg-stone-800 text-stone-400 border border-stone-700" aria-hidden="true">
                         SIM
                       </span>
                     )}
@@ -161,8 +185,79 @@ export function Navbar({ activeTab, setActiveTab }: NavbarProps) {
               })}
             </div>
           </nav>
+
+          {/* Search Button & Farmer Authentication Profile Control */}
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={onOpenSearch}
+              title="Search Dashboards & Telemetry (Ctrl+K)"
+              aria-label="Global Search"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-stone-950 hover:bg-stone-800 border border-stone-800 text-stone-300 hover:text-white text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-400"
+            >
+              <Search className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden xl:inline">Search</span>
+              <kbd className="hidden md:inline-block font-mono text-[9px] px-1 py-0.5 rounded bg-stone-800 text-stone-400 border border-stone-700">
+                ⌘K
+              </kbd>
+            </button>
+
+            {currentFarmer ? (
+              <div className="flex items-center gap-2 bg-stone-950 border border-stone-800 rounded-xl px-2.5 py-1.5">
+                <button
+                  type="button"
+                  onClick={onOpenAuth}
+                  className="flex items-center gap-2 text-left hover:opacity-80 transition-opacity focus:outline-none focus:ring-1 focus:ring-emerald-400 rounded-lg p-0.5"
+                  title="Switch Farmer Profile"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-stone-800 border border-stone-700 flex items-center justify-center text-sm overflow-hidden">
+                    {currentFarmer.avatarUrl ? (
+                      <img
+                        src={currentFarmer.avatarUrl}
+                        alt={currentFarmer.farmerName}
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <span>{currentFarmer.flag}</span>
+                    )}
+                  </div>
+                  <div className="hidden md:block leading-tight">
+                    <div className="text-xs font-bold text-white flex items-center gap-1">
+                      <span>{currentFarmer.farmerName}</span>
+                      <span className="text-[11px]">{currentFarmer.flag}</span>
+                    </div>
+                    <div className="text-[10px] text-emerald-400">
+                      {currentFarmer.role === 'extension_officer' ? 'Agronomist' : `${currentFarmer.cropFocus}`}
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onSignOut}
+                  title="Sign Out"
+                  aria-label="Sign out of farmer account"
+                  className="p-1 text-stone-400 hover:text-stone-200 hover:bg-stone-800 rounded-lg transition-colors focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={onOpenAuth}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-700/80 hover:bg-emerald-600 border border-emerald-500/40 text-white text-xs font-semibold shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Farmer Sign In</span>
+                <span className="sm:hidden">Sign In</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </header>
   );
 }
+

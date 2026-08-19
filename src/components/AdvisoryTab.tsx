@@ -30,14 +30,22 @@ import {
 interface AdvisoryTabProps {
   selectedPlot: PlotTelemetry;
   setSelectedPlot: (plot: PlotTelemetry) => void;
+  presetQuery?: string | null;
 }
 
-export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps) {
+export function AdvisoryTab({ selectedPlot, setSelectedPlot, presetQuery }: AdvisoryTabProps) {
   const activeRegionConfig = PRIMARY_TOGGLE_REGIONS.find((r) => r.id === selectedPlot.id);
   const [query, setQuery] = useState(
-    activeRegionConfig?.defaultQuery ||
+    presetQuery ||
+      activeRegionConfig?.defaultQuery ||
       'Should I apply 45 kg/ha Urea top-dressing to my wheat in Ludhiana given 14mm rain forecast on days 3-4 and soil pH 7.4?'
   );
+
+  useEffect(() => {
+    if (presetQuery) {
+      setQuery(presetQuery);
+    }
+  }, [presetQuery]);
   const [agentState, setAgentState] = useState<MultiAgentState>({
     currentStep: 0,
     advisoryStatus: 'idle',
@@ -751,9 +759,26 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
                 </div>
               </div>
 
-              {/* Read Aloud Button */}
+              {/* Read Aloud & Voice Speed Slider Controls */}
               {agentState.synthesisData && (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <div className="flex items-center gap-1.5 bg-stone-950/80 px-2.5 py-1 rounded-xl border border-stone-800 text-xs">
+                    <span className="text-[11px] text-stone-400">Speed:</span>
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="1.8"
+                      step="0.1"
+                      value={speechRate}
+                      onChange={(e) => setSpeechRate(Number(e.target.value))}
+                      aria-label="Adjust spoken speech playback rate"
+                      className="w-16 h-1 bg-stone-700 rounded-lg appearance-none cursor-pointer accent-teal-400"
+                    />
+                    <span className="text-[11px] font-mono text-teal-300 font-bold w-7 text-right">
+                      {speechRate.toFixed(1)}x
+                    </span>
+                  </div>
+
                   <button
                     type="button"
                     id="read-aloud-btn"
@@ -778,9 +803,6 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
                       </>
                     )}
                   </button>
-                  <span className="text-[10px] text-stone-400 hidden lg:inline">
-                    (Browser SpeechSynthesis stand-in for Cloud TTS)
-                  </span>
                 </div>
               )}
             </div>

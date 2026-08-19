@@ -17,6 +17,10 @@ import {
   Leaf,
   ChevronDown,
   ChevronUp,
+  Sliders,
+  RotateCcw,
+  Gauge,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface TelemetryPanelProps {
@@ -26,8 +30,37 @@ interface TelemetryPanelProps {
 
 export function TelemetryPanel({ selectedPlot, onSelectPlot }: TelemetryPanelProps) {
   const [showMemory, setShowMemory] = useState<boolean>(true);
+  const [showSliders, setShowSliders] = useState<boolean>(true);
   const days = ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5', 'Day 6', 'Day 7'];
   const maxRain = Math.max(...selectedPlot.rainfallDaily, 15);
+
+  // Helper to update specific plot telemetry attributes via sliders
+  const handleSliderUpdate = (updates: Partial<PlotTelemetry>) => {
+    onSelectPlot({
+      ...selectedPlot,
+      ...updates,
+    });
+  };
+
+  // Helper to scale daily rainfall when forecast slider changes
+  const handleRainfallSliderChange = (totalRainMm: number) => {
+    const baselineTotal = selectedPlot.rainfallDaily.reduce((acc, curr) => acc + curr, 0) || 1;
+    const ratio = totalRainMm / baselineTotal;
+    const newDaily = selectedPlot.rainfallDaily.map((mm) => Math.max(0, Math.round(mm * ratio)));
+    onSelectPlot({
+      ...selectedPlot,
+      rainfallForecast7d: totalRainMm,
+      rainfallDaily: newDaily,
+    });
+  };
+
+  // Reset to original regional plot defaults
+  const handleResetPlotDefaults = () => {
+    const original = BRICS_PLOTS.find((p) => p.id === selectedPlot.id);
+    if (original) {
+      onSelectPlot({ ...original });
+    }
+  };
 
   return (
     <section aria-label="Plot Environmental Telemetry" className="bg-stone-900 text-stone-100 rounded-2xl border border-stone-800 p-4 sm:p-5 shadow-lg space-y-4">
@@ -135,6 +168,39 @@ export function TelemetryPanel({ selectedPlot, onSelectPlot }: TelemetryPanelPro
             );
           })}
         </div>
+
+        {/* Complete BRICS Plots Horizontal Scroll Strip with Visible Scrollbar */}
+        <div className="mt-2.5 space-y-1">
+          <div className="flex items-center justify-between text-[11px] text-stone-400">
+            <span className="font-semibold text-stone-300">All BRICS Agro-Climatic Plots:</span>
+            <span className="text-[10px] text-stone-500">Scroll horizontally to select any plot</span>
+          </div>
+          <div
+            role="tablist"
+            aria-label="All BRICS Plots"
+            className="section-scrollbar flex items-center gap-2 overflow-x-auto pb-2 pt-0.5"
+          >
+            {BRICS_PLOTS.map((plot) => {
+              const isSelected = selectedPlot.id === plot.id;
+              return (
+                <button
+                  key={plot.id}
+                  type="button"
+                  onClick={() => onSelectPlot(plot)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs whitespace-nowrap transition-all border shrink-0 ${
+                    isSelected
+                      ? 'bg-emerald-950 text-emerald-200 border-emerald-500 font-bold shadow-sm ring-1 ring-emerald-400/40'
+                      : 'bg-stone-900/90 hover:bg-stone-800 text-stone-300 border-stone-800 hover:border-stone-700'
+                  }`}
+                >
+                  <span className="text-base">{plot.flag}</span>
+                  <span>{plot.country}: {plot.region}</span>
+                  <span className="text-[10px] text-stone-400 font-mono">({plot.crop})</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {/* Active Plot Info Banner */}
@@ -169,6 +235,230 @@ export function TelemetryPanel({ selectedPlot, onSelectPlot }: TelemetryPanelPro
             <span className="font-medium text-stone-200">{selectedPlot.historicalYieldAvg} t/ha</span>
           </div>
         </div>
+      </div>
+
+      {/* Interactive Biophysical What-If Telemetry Sliders */}
+      <div className="bg-stone-950/80 border border-stone-800 rounded-xl p-3.5 sm:p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="p-1 rounded-lg bg-emerald-950 text-emerald-400 border border-emerald-800/60">
+              <Sliders className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
+                <span>Interactive Telemetry &amp; What-If Simulation Sliders</span>
+                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-700/60 hidden sm:inline-block">
+                  Live Sensor Override
+                </span>
+              </div>
+              <p className="text-[11px] text-stone-400">
+                Adjust environmental parameters to test how the biophysical simulation &amp; Gemini advisory respond
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleResetPlotDefaults}
+              title="Reset sliders to baseline plot telemetry"
+              aria-label="Reset sliders to baseline plot telemetry"
+              className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white border border-stone-700 transition-colors"
+            >
+              <RotateCcw className="w-3 h-3 text-stone-400" />
+              <span>Reset</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowSliders(!showSliders)}
+              className="text-xs text-stone-400 hover:text-stone-200 p-1"
+              aria-expanded={showSliders}
+              aria-label="Toggle What-If Sliders view"
+            >
+              {showSliders ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+          </div>
+        </div>
+
+        {showSliders && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-2 border-t border-stone-800/80">
+            {/* Slider 1: Soil Moisture */}
+            <div className="bg-stone-900/90 rounded-xl p-3 border border-stone-800 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-stone-300 flex items-center gap-1.5">
+                  <Droplets className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Soil Moisture</span>
+                </span>
+                <span className="font-bold text-white font-mono bg-stone-800 px-1.5 py-0.5 rounded border border-stone-700 text-xs">
+                  {selectedPlot.soilMoisture}%
+                </span>
+              </div>
+
+              <input
+                type="range"
+                min="10"
+                max="85"
+                step="1"
+                value={selectedPlot.soilMoisture}
+                onChange={(e) => handleSliderUpdate({ soilMoisture: Number(e.target.value) })}
+                aria-label="Adjust Soil Moisture Percentage"
+                className="w-full h-1.5 bg-stone-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+              />
+
+              <div className="flex items-center justify-between text-[10px] text-stone-400">
+                <span>10% (Drought)</span>
+                <span
+                  className={`font-semibold ${
+                    selectedPlot.soilMoisture < 35
+                      ? 'text-amber-400'
+                      : selectedPlot.soilMoisture > 65
+                      ? 'text-blue-400'
+                      : 'text-emerald-400'
+                  }`}
+                >
+                  {selectedPlot.soilMoisture < 35
+                    ? 'Dry Stress'
+                    : selectedPlot.soilMoisture > 65
+                    ? 'Saturated'
+                    : 'Optimal'}
+                </span>
+                <span>85% (Wet)</span>
+              </div>
+            </div>
+
+            {/* Slider 2: 7-Day Rainfall Forecast */}
+            <div className="bg-stone-900/90 rounded-xl p-3 border border-stone-800 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-stone-300 flex items-center gap-1.5">
+                  <CloudRain className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Rain Forecast</span>
+                </span>
+                <span className="font-bold text-white font-mono bg-stone-800 px-1.5 py-0.5 rounded border border-stone-700 text-xs">
+                  {selectedPlot.rainfallForecast7d} mm
+                </span>
+              </div>
+
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                value={selectedPlot.rainfallForecast7d}
+                onChange={(e) => handleRainfallSliderChange(Number(e.target.value))}
+                aria-label="Adjust 7-Day Rainfall Forecast in millimeters"
+                className="w-full h-1.5 bg-stone-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+              />
+
+              <div className="flex items-center justify-between text-[10px] text-stone-400">
+                <span>0 mm (Dry)</span>
+                <span
+                  className={`font-semibold ${
+                    selectedPlot.rainfallForecast7d > 45
+                      ? 'text-rose-400'
+                      : selectedPlot.rainfallForecast7d > 15
+                      ? 'text-amber-300'
+                      : 'text-emerald-400'
+                  }`}
+                >
+                  {selectedPlot.rainfallForecast7d > 45
+                    ? 'High Leaching'
+                    : selectedPlot.rainfallForecast7d > 15
+                    ? 'Moderate Rain'
+                    : 'Dry Window'}
+                </span>
+                <span>100 mm</span>
+              </div>
+            </div>
+
+            {/* Slider 3: Soil pH */}
+            <div className="bg-stone-900/90 rounded-xl p-3 border border-stone-800 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-stone-300 flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Soil pH</span>
+                </span>
+                <span className="font-bold text-white font-mono bg-stone-800 px-1.5 py-0.5 rounded border border-stone-700 text-xs">
+                  {selectedPlot.soilPH.toFixed(1)}
+                </span>
+              </div>
+
+              <input
+                type="range"
+                min="4.5"
+                max="9.0"
+                step="0.1"
+                value={selectedPlot.soilPH}
+                onChange={(e) => handleSliderUpdate({ soilPH: Number(Number(e.target.value).toFixed(1)) })}
+                aria-label="Adjust Soil pH Level"
+                className="w-full h-1.5 bg-stone-700 rounded-lg appearance-none cursor-pointer accent-amber-500"
+              />
+
+              <div className="flex items-center justify-between text-[10px] text-stone-400">
+                <span>4.5 (Acidic)</span>
+                <span
+                  className={`font-semibold ${
+                    selectedPlot.soilPH < 6.0
+                      ? 'text-amber-400'
+                      : selectedPlot.soilPH > 7.8
+                      ? 'text-indigo-400'
+                      : 'text-emerald-400'
+                  }`}
+                >
+                  {selectedPlot.soilPH < 6.0
+                    ? 'P-Lockup'
+                    : selectedPlot.soilPH > 7.8
+                    ? 'Alkaline'
+                    : 'Balanced'}
+                </span>
+                <span>9.0 (Alkaline)</span>
+              </div>
+            </div>
+
+            {/* Slider 4: Soil Nitrogen Level */}
+            <div className="bg-stone-900/90 rounded-xl p-3 border border-stone-800 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-stone-300 flex items-center gap-1.5">
+                  <Gauge className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Nitrogen (N)</span>
+                </span>
+                <span className="font-bold text-white font-mono bg-stone-800 px-1.5 py-0.5 rounded border border-stone-700 text-xs">
+                  {selectedPlot.nitrogen} kg/ha
+                </span>
+              </div>
+
+              <input
+                type="range"
+                min="30"
+                max="280"
+                step="5"
+                value={selectedPlot.nitrogen}
+                onChange={(e) => handleSliderUpdate({ nitrogen: Number(e.target.value) })}
+                aria-label="Adjust Soil Nitrogen kg per hectare"
+                className="w-full h-1.5 bg-stone-700 rounded-lg appearance-none cursor-pointer accent-emerald-400"
+              />
+
+              <div className="flex items-center justify-between text-[10px] text-stone-400">
+                <span>30 (Low)</span>
+                <span
+                  className={`font-semibold ${
+                    selectedPlot.nitrogen < 100
+                      ? 'text-amber-400'
+                      : selectedPlot.nitrogen > 220
+                      ? 'text-blue-400'
+                      : 'text-emerald-400'
+                  }`}
+                >
+                  {selectedPlot.nitrogen < 100
+                    ? 'Deficient'
+                    : selectedPlot.nitrogen > 220
+                    ? 'Abundant'
+                    : 'Adequate'}
+                </span>
+                <span>280 kg/ha</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Sensor Metric Grid */}

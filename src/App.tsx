@@ -4,21 +4,65 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { NavigationTab, PlotTelemetry } from './types';
-import { BRICS_PLOTS } from './data/mockData';
+import { NavigationTab, PlotTelemetry, FarmerProfile } from './types';
+import { BRICS_PLOTS, DEMO_FARMERS } from './data/mockData';
 import { Navbar } from './components/Navbar';
+import { LandingPage } from './components/LandingPage';
 import { AdvisoryTab } from './components/AdvisoryTab';
 import { DiagnosisTab } from './components/DiagnosisTab';
 import { ExtensionCopilotTab } from './components/ExtensionCopilotTab';
 import { FederatedTab } from './components/FederatedTab';
 import { OutbreakTab } from './components/OutbreakTab';
 import { ArchitectureTab } from './components/ArchitectureTab';
-import { Sprout, Globe, Database } from 'lucide-react';
+import { SatelliteSoilTab } from './components/SatelliteSoilTab';
+import { FarmProfileTab } from './components/FarmProfileTab';
+import { FpoMarketplaceTab } from './components/FpoMarketplaceTab';
+import { GovernanceApiTab } from './components/GovernanceApiTab';
+import { KnowledgeTab } from './components/KnowledgeTab';
+import { AuthModal } from './components/AuthModal';
+import { CommandPalette } from './components/CommandPalette';
+import { FarmerControlBar } from './components/FarmerControlBar';
+import { Sprout, Globe } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<NavigationTab>('advisory');
+  const [activeTab, setActiveTab] = useState<NavigationTab>('landing');
   const [plots, setPlots] = useState<PlotTelemetry[]>(BRICS_PLOTS);
   const [selectedPlot, setSelectedPlot] = useState<PlotTelemetry>(BRICS_PLOTS[0]);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [presetQuery, setPresetQuery] = useState<string | null>(null);
+
+  // Farmer Authentication State (persisted to localStorage)
+  const [currentFarmer, setCurrentFarmer] = useState<FarmerProfile | null>(() => {
+    try {
+      const saved = localStorage.getItem('agrinet_active_farmer');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch {
+      // ignore
+    }
+    // Default to first demo farmer for immediate exploration
+    return DEMO_FARMERS[0] as FarmerProfile;
+  });
+
+  // Global Keyboard Shortcut for Command Palette (⌘K / Ctrl+K / /)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsSearchOpen((prev) => !prev);
+      } else if (
+        e.key === '/' &&
+        !['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)
+      ) {
+        e.preventDefault();
+        setIsSearchOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Load persistent plots from SQLite DB
   useEffect(() => {
@@ -27,11 +71,47 @@ export default function App() {
       .then((json) => {
         if (json.success && Array.isArray(json.data) && json.data.length > 0) {
           setPlots(json.data);
-          setSelectedPlot(json.data[0]);
+          // If current farmer has a plotId, find that plot
+          if (currentFarmer?.plotId) {
+            const match = json.data.find((p: PlotTelemetry) => p.id === currentFarmer.plotId);
+            if (match) setSelectedPlot(match);
+            else setSelectedPlot(json.data[0]);
+          } else {
+            setSelectedPlot(json.data[0]);
+          }
         }
       })
       .catch((err) => console.warn('Could not load SQLite plots:', err));
   }, []);
+
+  const handleLoginSuccess = (farmer: FarmerProfile) => {
+    setCurrentFarmer(farmer);
+    try {
+      localStorage.setItem('agrinet_active_farmer', JSON.stringify(farmer));
+    } catch {
+      // ignore
+    }
+
+    // Automatically align active telemetry plot with farmer's plot
+    if (farmer.plotId) {
+      const matchingPlot = plots.find((p) => p.id === farmer.plotId) || BRICS_PLOTS.find((p) => p.id === farmer.plotId);
+      if (matchingPlot) {
+        setSelectedPlot(matchingPlot);
+      }
+    }
+
+    // Switch to advisory tab on login
+    setActiveTab('advisory');
+  };
+
+  const handleSignOut = () => {
+    setCurrentFarmer(null);
+    try {
+      localStorage.removeItem('agrinet_active_farmer');
+    } catch {
+      // ignore
+    }
+  };
 
   // Bind helper to window for global query switching
   (window as any).__findPlotById = (plotId: string) => {
@@ -51,7 +131,14 @@ export default function App() {
       </a>
 
       {/* Header & Navigation */}
-      <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Navbar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        currentFarmer={currentFarmer}
+        onOpenAuth={() => setIsAuthModalOpen(true)}
+        onSignOut={handleSignOut}
+        onOpenSearch={() => setIsSearchOpen(true)}
+      />
 
       {/* Main Content Area */}
       <main
@@ -61,6 +148,18 @@ export default function App() {
         aria-label="Main Application Content"
         className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 focus:outline-none"
       >
+        {/* Comfortable Farmer Dashboard Hub & Quick Plot Switcher (Active on all tabs) */}
+        <FarmerControlBar
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          currentFarmer={currentFarmer}
+          onOpenAuth={() => setIsAuthModalOpen(true)}
+          plots={plots}
+          selectedPlot={selectedPlot}
+          setSelectedPlot={setSelectedPlot}
+          onOpenSearch={() => setIsSearchOpen(true)}
+        />
+
         <div
           role="tabpanel"
           id={`tabpanel-${activeTab}`}
@@ -68,16 +167,74 @@ export default function App() {
           tabIndex={0}
           className="focus:outline-none"
         >
+          {activeTab === 'landing' && (
+            <LandingPage
+              onNavigate={setActiveTab}
+              onOpenAuth={() => setIsAuthModalOpen(true)}
+              currentFarmer={currentFarmer}
+              plots={plots}
+              onSelectPlot={setSelectedPlot}
+            />
+          )}
           {activeTab === 'advisory' && (
-            <AdvisoryTab selectedPlot={selectedPlot} setSelectedPlot={setSelectedPlot} />
+            <AdvisoryTab
+              selectedPlot={selectedPlot}
+              setSelectedPlot={setSelectedPlot}
+              presetQuery={presetQuery}
+            />
           )}
           {activeTab === 'diagnosis' && <DiagnosisTab />}
+          {activeTab === 'satellite_soil' && (
+            <SatelliteSoilTab
+              selectedPlot={selectedPlot}
+              onSelectPlot={setSelectedPlot}
+            />
+          )}
+          {activeTab === 'farm_profile' && (
+            <FarmProfileTab
+              currentFarmer={currentFarmer}
+              onOpenAuth={() => setIsAuthModalOpen(true)}
+            />
+          )}
           {activeTab === 'copilot' && <ExtensionCopilotTab />}
+          {activeTab === 'fpo_marketplace' && <FpoMarketplaceTab />}
           {activeTab === 'federated' && <FederatedTab />}
           {activeTab === 'outbreak' && <OutbreakTab />}
+          {activeTab === 'governance_api' && <GovernanceApiTab />}
+          {activeTab === 'knowledge' && (
+            <KnowledgeTab
+              currentLanguage="en"
+            />
+          )}
           {activeTab === 'architecture' && <ArchitectureTab />}
         </div>
       </main>
+
+      {/* Farmer Authentication Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        currentFarmer={currentFarmer}
+        onLoginSuccess={handleLoginSuccess}
+        availablePlots={plots}
+      />
+
+      {/* Global Command Palette & Dashboard Search */}
+      <CommandPalette
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        onNavigate={setActiveTab}
+        plots={plots}
+        onSelectPlot={setSelectedPlot}
+        onSelectQuery={(queryText) => {
+          setPresetQuery(queryText);
+        }}
+        currentFarmer={currentFarmer}
+        onOpenAuth={() => {
+          setIsSearchOpen(false);
+          setIsAuthModalOpen(true);
+        }}
+      />
 
       {/* Footer */}
       <footer role="contentinfo" className="bg-stone-900 border-t border-stone-800 py-6 text-stone-400 text-xs mt-auto">
