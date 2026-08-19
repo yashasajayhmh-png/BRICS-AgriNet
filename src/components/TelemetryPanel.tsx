@@ -30,12 +30,12 @@ export function TelemetryPanel({ selectedPlot, onSelectPlot }: TelemetryPanelPro
   const maxRain = Math.max(...selectedPlot.rainfallDaily, 15);
 
   return (
-    <div className="bg-stone-900 text-stone-100 rounded-2xl border border-stone-800 p-4 sm:p-5 shadow-lg space-y-4">
+    <section aria-label="Plot Environmental Telemetry" className="bg-stone-900 text-stone-100 rounded-2xl border border-stone-800 p-4 sm:p-5 shadow-lg space-y-4">
       {/* Header with Title and Simulated Label */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-800">
         <div>
           <div className="flex items-center gap-2">
-            <Satellite className="w-4 h-4 text-emerald-400" />
+            <Satellite className="w-4 h-4 text-emerald-400" aria-hidden="true" />
             <h3 className="font-semibold text-sm sm:text-base text-white">
               Plot Environmental Telemetry
             </h3>
@@ -56,6 +56,7 @@ export function TelemetryPanel({ selectedPlot, onSelectPlot }: TelemetryPanelPro
           <select
             id="plot-select"
             value={selectedPlot.id}
+            aria-label="Select agricultural hub or plot"
             onChange={(e) => {
               const found = BRICS_PLOTS.find((p) => p.id === e.target.value);
               if (found) onSelectPlot(found);
@@ -75,15 +76,15 @@ export function TelemetryPanel({ selectedPlot, onSelectPlot }: TelemetryPanelPro
       <div>
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs font-semibold text-stone-300 flex items-center gap-1.5">
-            <Globe2 className="w-3.5 h-3.5 text-emerald-400" />
-            Switch Mock Farmer Region:
+            <Globe2 className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
+            <span>Switch Mock Farmer Region:</span>
           </span>
           <span className="text-[11px] text-emerald-400 font-medium">
             3 High-Diversity Agro-Ecological Zones
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5" role="group" aria-label="Quick Region Selection">
           {PRIMARY_TOGGLE_REGIONS.map((region) => {
             const isSelected = selectedPlot.id === region.id;
             const plotData = BRICS_PLOTS.find((p) => p.id === region.id);
@@ -93,10 +94,12 @@ export function TelemetryPanel({ selectedPlot, onSelectPlot }: TelemetryPanelPro
                 key={region.id}
                 type="button"
                 id={`toggle-region-${region.id}`}
+                aria-pressed={isSelected}
+                aria-label={`Select region ${region.name}, country ${plotData?.country}, crop ${plotData?.crop}`}
                 onClick={() => {
                   if (plotData) onSelectPlot(plotData);
                 }}
-                className={`relative text-left p-3 rounded-xl border transition-all cursor-pointer ${
+                className={`relative text-left p-3 rounded-xl border transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-400 ${
                   isSelected
                     ? 'bg-emerald-950/70 border-emerald-500 text-white shadow-md shadow-emerald-950/50 ring-1 ring-emerald-500/50'
                     : 'bg-stone-800/60 border-stone-700/80 text-stone-300 hover:bg-stone-800 hover:border-stone-600'
@@ -104,7 +107,7 @@ export function TelemetryPanel({ selectedPlot, onSelectPlot }: TelemetryPanelPro
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-2xl">{region.flag}</span>
+                    <span className="text-2xl" aria-hidden="true">{region.flag}</span>
                     <div>
                       <div className="font-bold text-sm text-white flex items-center gap-1.5">
                         {region.name}
@@ -115,7 +118,7 @@ export function TelemetryPanel({ selectedPlot, onSelectPlot }: TelemetryPanelPro
                     </div>
                   </div>
                   {isSelected && (
-                    <span className="p-0.5 rounded-full bg-emerald-500 text-stone-950">
+                    <span className="p-0.5 rounded-full bg-emerald-500 text-stone-950" aria-hidden="true">
                       <CheckCircle2 className="w-3.5 h-3.5" />
                     </span>
                   )}
@@ -137,7 +140,7 @@ export function TelemetryPanel({ selectedPlot, onSelectPlot }: TelemetryPanelPro
       {/* Active Plot Info Banner */}
       <div className="bg-gradient-to-r from-emerald-950/60 to-stone-800/80 rounded-xl p-3 border border-emerald-800/30 flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-2.5">
-          <span className="text-2xl">{selectedPlot.flag}</span>
+          <span className="text-2xl" aria-hidden="true">{selectedPlot.flag}</span>
           <div>
             <div className="font-bold text-white text-sm flex items-center gap-2">
               <span>{selectedPlot.name}</span>
@@ -146,8 +149,8 @@ export function TelemetryPanel({ selectedPlot, onSelectPlot }: TelemetryPanelPro
               </span>
             </div>
             <div className="text-stone-300 flex items-center gap-1 text-xs">
-              <MapPin className="w-3.5 h-3.5 text-emerald-400" />
-              {selectedPlot.region} • <span className="text-emerald-300 font-semibold">{selectedPlot.crop}</span>
+              <MapPin className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
+              <span>{selectedPlot.region} • <strong className="text-emerald-300 font-semibold">{selectedPlot.crop}</strong></span>
             </div>
           </div>
         </div>
@@ -171,10 +174,10 @@ export function TelemetryPanel({ selectedPlot, onSelectPlot }: TelemetryPanelPro
       {/* Sensor Metric Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {/* Soil pH */}
-        <div className="bg-stone-800/80 rounded-xl p-3 border border-stone-700/60">
+        <div className="bg-stone-800/80 rounded-xl p-3 border border-stone-700/60" aria-label={`Soil pH: ${selectedPlot.soilPH}`}>
           <div className="flex items-center justify-between text-stone-400 text-xs mb-1">
             <span>Soil pH</span>
-            <Layers className="w-3.5 h-3.5 text-amber-400" />
+            <Layers className="w-3.5 h-3.5 text-amber-400" aria-hidden="true" />
           </div>
           <div className="flex items-baseline gap-1.5">
             <span className="text-xl font-bold text-white">{selectedPlot.soilPH}</span>
@@ -183,7 +186,7 @@ export function TelemetryPanel({ selectedPlot, onSelectPlot }: TelemetryPanelPro
             </span>
           </div>
           {/* Visual pH bar */}
-          <div className="w-full bg-stone-700 h-1.5 rounded-full mt-2 overflow-hidden">
+          <div className="w-full bg-stone-700 h-1.5 rounded-full mt-2 overflow-hidden" aria-hidden="true">
             <div
               className={`h-full rounded-full ${
                 selectedPlot.soilPH < 6.0 ? 'bg-amber-500' : selectedPlot.soilPH > 7.5 ? 'bg-indigo-400' : 'bg-emerald-500'
@@ -194,10 +197,10 @@ export function TelemetryPanel({ selectedPlot, onSelectPlot }: TelemetryPanelPro
         </div>
 
         {/* Soil Moisture */}
-        <div className="bg-stone-800/80 rounded-xl p-3 border border-stone-700/60">
+        <div className="bg-stone-800/80 rounded-xl p-3 border border-stone-700/60" aria-label={`Soil Moisture: ${selectedPlot.soilMoisture} percent`}>
           <div className="flex items-center justify-between text-stone-400 text-xs mb-1">
             <span>Soil Moisture</span>
-            <Droplets className="w-3.5 h-3.5 text-blue-400" />
+            <Droplets className="w-3.5 h-3.5 text-blue-400" aria-hidden="true" />
           </div>
           <div className="flex items-baseline gap-1.5">
             <span className="text-xl font-bold text-white">{selectedPlot.soilMoisture}%</span>
@@ -205,7 +208,7 @@ export function TelemetryPanel({ selectedPlot, onSelectPlot }: TelemetryPanelPro
               {selectedPlot.soilMoisture < 45 ? 'Deficit / Dry' : selectedPlot.soilMoisture > 65 ? 'High / Saturated' : 'Adequate'}
             </span>
           </div>
-          <div className="w-full bg-stone-700 h-1.5 rounded-full mt-2 overflow-hidden">
+          <div className="w-full bg-stone-700 h-1.5 rounded-full mt-2 overflow-hidden" aria-hidden="true">
             <div
               className={`h-full rounded-full ${
                 selectedPlot.soilMoisture < 45 ? 'bg-amber-500' : selectedPlot.soilMoisture > 65 ? 'bg-blue-500' : 'bg-emerald-500'
@@ -216,10 +219,10 @@ export function TelemetryPanel({ selectedPlot, onSelectPlot }: TelemetryPanelPro
         </div>
 
         {/* Weather & Temp */}
-        <div className="bg-stone-800/80 rounded-xl p-3 border border-stone-700/60">
+        <div className="bg-stone-800/80 rounded-xl p-3 border border-stone-700/60" aria-label={`Temperature range: ${selectedPlot.tempRange.min} to ${selectedPlot.tempRange.max} degrees Celsius, Relative Humidity: ${selectedPlot.humidityPercent} percent`}>
           <div className="flex items-center justify-between text-stone-400 text-xs mb-1">
             <span>Temp &amp; Humidity</span>
-            <Thermometer className="w-3.5 h-3.5 text-rose-400" />
+            <Thermometer className="w-3.5 h-3.5 text-rose-400" aria-hidden="true" />
           </div>
           <div className="flex items-baseline gap-1.5">
             <span className="text-xl font-bold text-white">
@@ -235,17 +238,17 @@ export function TelemetryPanel({ selectedPlot, onSelectPlot }: TelemetryPanelPro
         </div>
 
         {/* NDVI Vegetation Index */}
-        <div className="bg-stone-800/80 rounded-xl p-3 border border-stone-700/60">
+        <div className="bg-stone-800/80 rounded-xl p-3 border border-stone-700/60" aria-label={`NDVI Vegetation Health: ${selectedPlot.ndviCurrent}`}>
           <div className="flex items-center justify-between text-stone-400 text-xs mb-1">
             <span>NDVI Health</span>
-            <Activity className="w-3.5 h-3.5 text-emerald-400" />
+            <Activity className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
           </div>
           <div className="flex items-baseline gap-1.5">
             <span className="text-xl font-bold text-emerald-400">{selectedPlot.ndviCurrent}</span>
             <span className="text-[10px] text-stone-400">Canopy Vigour</span>
           </div>
           {/* Mini sparkline */}
-          <div className="flex items-end gap-1 h-3 mt-2">
+          <div className="flex items-end gap-1 h-3 mt-2" aria-hidden="true">
             {selectedPlot.ndviTrend.map((v, i) => (
               <div
                 key={i}
@@ -261,7 +264,7 @@ export function TelemetryPanel({ selectedPlot, onSelectPlot }: TelemetryPanelPro
       {/* Row 2: N-P-K Nutrients & 7-Day Rainfall Forecast */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 pt-1">
         {/* N-P-K Nutrient Bars */}
-        <div className="bg-stone-800/50 rounded-xl p-3 border border-stone-700/40">
+        <div className="bg-stone-800/50 rounded-xl p-3 border border-stone-700/40" role="region" aria-label={`Soil N-P-K Nutrients: Nitrogen ${selectedPlot.nitrogen} kg/ha, Phosphorus ${selectedPlot.phosphorus} kg/ha, Potassium ${selectedPlot.potassium} kg/ha`}>
           <div className="flex items-center justify-between text-xs font-semibold text-stone-300 mb-2">
             <span>Soil N-P-K Nutrient Status (kg/ha)</span>
             <span className="text-[10px] text-stone-400">OC: {selectedPlot.organicCarbonPercent}%</span>
@@ -273,7 +276,7 @@ export function TelemetryPanel({ selectedPlot, onSelectPlot }: TelemetryPanelPro
                 <span className="text-stone-300">Nitrogen (N)</span>
                 <span className="font-semibold text-white">{selectedPlot.nitrogen} kg/ha</span>
               </div>
-              <div className="w-full bg-stone-700 h-2 rounded-full overflow-hidden">
+              <div className="w-full bg-stone-700 h-2 rounded-full overflow-hidden" aria-hidden="true">
                 <div
                   className="bg-emerald-500 h-full rounded-full"
                   style={{ width: `${Math.min((selectedPlot.nitrogen / 300) * 100, 100)}%` }}
@@ -286,7 +289,7 @@ export function TelemetryPanel({ selectedPlot, onSelectPlot }: TelemetryPanelPro
                 <span className="text-stone-300">Phosphorus (P)</span>
                 <span className="font-semibold text-white">{selectedPlot.phosphorus} kg/ha</span>
               </div>
-              <div className="w-full bg-stone-700 h-2 rounded-full overflow-hidden">
+              <div className="w-full bg-stone-700 h-2 rounded-full overflow-hidden" aria-hidden="true">
                 <div
                   className="bg-amber-500 h-full rounded-full"
                   style={{ width: `${Math.min((selectedPlot.phosphorus / 60) * 100, 100)}%` }}
@@ -299,7 +302,7 @@ export function TelemetryPanel({ selectedPlot, onSelectPlot }: TelemetryPanelPro
                 <span className="text-stone-300">Potassium (K)</span>
                 <span className="font-semibold text-white">{selectedPlot.potassium} kg/ha</span>
               </div>
-              <div className="w-full bg-stone-700 h-2 rounded-full overflow-hidden">
+              <div className="w-full bg-stone-700 h-2 rounded-full overflow-hidden" aria-hidden="true">
                 <div
                   className="bg-indigo-400 h-full rounded-full"
                   style={{ width: `${Math.min((selectedPlot.potassium / 350) * 100, 100)}%` }}
@@ -310,18 +313,18 @@ export function TelemetryPanel({ selectedPlot, onSelectPlot }: TelemetryPanelPro
         </div>
 
         {/* 7-Day Rainfall Forecast */}
-        <div className="bg-stone-800/50 rounded-xl p-3 border border-stone-700/40">
+        <div className="bg-stone-800/50 rounded-xl p-3 border border-stone-700/40" role="region" aria-label={`7-Day Precipitation Forecast, Total ${selectedPlot.rainfallForecast7d} millimeters`}>
           <div className="flex items-center justify-between text-xs font-semibold text-stone-300 mb-2">
             <span className="flex items-center gap-1.5">
-              <CloudRain className="w-3.5 h-3.5 text-blue-400" />
-              7-Day Precipitation Forecast ({selectedPlot.rainfallForecast7d} mm total)
+              <CloudRain className="w-3.5 h-3.5 text-blue-400" aria-hidden="true" />
+              <span>7-Day Precipitation Forecast ({selectedPlot.rainfallForecast7d} mm total)</span>
             </span>
             <span className="text-[10px] text-blue-300 font-medium">
               {selectedPlot.rainfallForecast7d > 50 ? 'Heavy Rain Cycle' : selectedPlot.rainfallForecast7d < 15 ? 'Dry Outlook' : 'Moderate'}
             </span>
           </div>
 
-          <div className="flex items-end justify-between gap-1.5 h-16 pt-2">
+          <div className="flex items-end justify-between gap-1.5 h-16 pt-2" aria-hidden="true">
             {selectedPlot.rainfallDaily.map((mm, idx) => {
               const heightPercent = Math.max((mm / maxRain) * 100, 8);
               return (
@@ -347,11 +350,22 @@ export function TelemetryPanel({ selectedPlot, onSelectPlot }: TelemetryPanelPro
       {selectedPlot.episodicMemories && selectedPlot.episodicMemories.length > 0 && (
         <div className="bg-stone-950/70 rounded-xl border border-stone-800 p-3.5 space-y-3">
           <div
-            className="flex items-center justify-between cursor-pointer"
+            className="flex items-center justify-between cursor-pointer focus:outline-none"
             onClick={() => setShowMemory(!showMemory)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setShowMemory(!showMemory);
+              }
+            }}
+            role="button"
+            tabIndex={0}
+            aria-expanded={showMemory}
+            aria-controls="episodic-memory-section"
+            aria-label={`Toggle Episodic Field Memory, ${selectedPlot.episodicMemories.length} seasons available`}
           >
             <div className="flex items-center gap-2">
-              <History className="w-4 h-4 text-emerald-400" />
+              <History className="w-4 h-4 text-emerald-400" aria-hidden="true" />
               <span className="text-xs font-bold text-white">
                 Episodic Field Memory (Firestore Multi-Season Plot History)
               </span>
@@ -359,18 +373,19 @@ export function TelemetryPanel({ selectedPlot, onSelectPlot }: TelemetryPanelPro
                 {selectedPlot.episodicMemories.length} Historic Seasons
               </span>
             </div>
-            <button type="button" className="text-stone-400 hover:text-white text-xs flex items-center gap-1">
+            <div className="text-stone-400 hover:text-white text-xs flex items-center gap-1">
               <span>{showMemory ? 'Collapse' : 'Expand'}</span>
-              {showMemory ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            </button>
+              {showMemory ? <ChevronUp className="w-3.5 h-3.5" aria-hidden="true" /> : <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />}
+            </div>
           </div>
 
           {showMemory && (
-            <div className="space-y-2 pt-1 border-t border-stone-800/80">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+            <div id="episodic-memory-section" className="space-y-2 pt-1 border-t border-stone-800/80">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs" role="list" aria-label="Historic plot seasons">
                 {selectedPlot.episodicMemories.map((event, idx) => (
                   <div
                     key={idx}
+                    role="listitem"
                     className="bg-stone-900/90 p-3 rounded-lg border border-stone-800 space-y-1.5"
                   >
                     <div className="flex items-center justify-between text-[11px] font-bold">
@@ -393,13 +408,13 @@ export function TelemetryPanel({ selectedPlot, onSelectPlot }: TelemetryPanelPro
               <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-stone-800/60 text-[11px]">
                 <div className="flex items-center gap-2">
                   <span className="flex items-center gap-1 text-emerald-400 font-semibold">
-                    <DollarSign className="w-3.5 h-3.5" />
-                    Agri-Credit Score: {selectedPlot.creditProfile?.creditScore || 84}/100 (Grade {selectedPlot.creditProfile?.ratingGrade || 'A'})
+                    <DollarSign className="w-3.5 h-3.5" aria-hidden="true" />
+                    <span>Agri-Credit Score: {selectedPlot.creditProfile?.creditScore || 84}/100 (Grade {selectedPlot.creditProfile?.ratingGrade || 'A'})</span>
                   </span>
-                  <span className="text-stone-600">•</span>
+                  <span className="text-stone-600" aria-hidden="true">•</span>
                   <span className="flex items-center gap-1 text-teal-300">
-                    <Leaf className="w-3.5 h-3.5" />
-                    dMRV Carbon: +{selectedPlot.dmrvRecord?.carbonSequesteredTonsHa || 1.65} t CO₂e/ha
+                    <Leaf className="w-3.5 h-3.5" aria-hidden="true" />
+                    <span>dMRV Carbon: +{selectedPlot.dmrvRecord?.carbonSequesteredTonsHa || 1.65} t CO₂e/ha</span>
                   </span>
                 </div>
                 <span className="text-[10px] text-stone-500 italic">
@@ -410,6 +425,6 @@ export function TelemetryPanel({ selectedPlot, onSelectPlot }: TelemetryPanelPro
           )}
         </div>
       )}
-    </div>
+    </section>
   );
 }

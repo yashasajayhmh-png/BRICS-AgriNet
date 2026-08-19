@@ -39,7 +39,31 @@ export function DiagnosisTab() {
   const [extensionNotesSubmitted, setExtensionNotesSubmitted] = useState<boolean>(false);
   const [extensionOfficerNotes, setExtensionOfficerNotes] = useState<string>('');
 
+  // Persistent Diagnosis History from SQLite DB
+  const [savedDiagnoses, setSavedDiagnoses] = useState<any[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch persistent SQLite diagnosis history on mount
+  const fetchDiagnosisHistory = async () => {
+    setIsLoadingHistory(true);
+    try {
+      const res = await fetch('/api/db/diagnoses');
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        setSavedDiagnoses(json.data);
+      }
+    } catch (err) {
+      console.warn('Failed to load SQLite diagnosis history:', err);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDiagnosisHistory();
+  }, []);
 
   // Ticker for diagnosis loading steps
   useEffect(() => {
@@ -160,6 +184,7 @@ export function DiagnosisTab() {
       if (response.ok) {
         const result = await response.json();
         setDiagnosisResult(result.data);
+        fetchDiagnosisHistory();
       } else {
         // Realistic fallback for demo resilience
         if (selectedSample?.isEscalationTrigger) {
@@ -242,6 +267,7 @@ export function DiagnosisTab() {
             extensionNotes: 'High-confidence automated triage (89%). Standard chemical & biological remedial protocol active.',
           });
         }
+        fetchDiagnosisHistory();
       }
     } catch (err: any) {
       console.error('Diagnosis error:', err);
@@ -322,14 +348,23 @@ export function DiagnosisTab() {
             {/* DRAG AND DROP ZONE */}
             <div
               id="image-drop-zone"
+              role="button"
+              tabIndex={0}
+              aria-label="Upload crop leaf photo by clicking or dragging and dropping an image"
               onDragOver={handleDragOver}
               onDragEnter={handleDragEnter}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  fileInputRef.current?.click();
+                }
+              }}
               onClick={() => {
                 if (!selectedImage) fileInputRef.current?.click();
               }}
-              className={`relative aspect-square rounded-2xl overflow-hidden transition-all duration-200 flex flex-col items-center justify-center border-2 border-dashed ${
+              className={`relative aspect-square rounded-2xl overflow-hidden transition-all duration-200 flex flex-col items-center justify-center border-2 border-dashed focus:outline-none focus:ring-2 focus:ring-emerald-400 ${
                 isDraggingOver
                   ? 'border-emerald-400 bg-emerald-950/40 ring-4 ring-emerald-500/30 scale-[1.01]'
                   : selectedImage
@@ -341,14 +376,14 @@ export function DiagnosisTab() {
                 <>
                   <img
                     src={selectedImage}
-                    alt="Crop Leaf Target"
+                    alt={selectedSample ? `Crop Leaf Photo: ${selectedSample.name}` : "Selected crop leaf photo"}
                     className="w-full h-full object-contain p-2"
                     referrerPolicy="no-referrer"
                   />
 
                   {/* Drag-over overlay when replacing */}
                   {isDraggingOver && (
-                    <div className="absolute inset-0 bg-emerald-950/80 backdrop-blur-xs flex flex-col items-center justify-center p-4 text-center z-20 animate-in fade-in">
+                    <div className="absolute inset-0 bg-emerald-950/80 backdrop-blur-xs flex flex-col items-center justify-center p-4 text-center z-20 animate-in fade-in" aria-hidden="true">
                       <Upload className="w-12 h-12 text-emerald-400 animate-bounce mb-2" />
                       <p className="text-sm font-bold text-white">Drop to Replace Leaf Photo</p>
                       <p className="text-xs text-emerald-300">Release image file here</p>
@@ -357,8 +392,8 @@ export function DiagnosisTab() {
 
                   {/* Top Bar for sample status */}
                   {selectedSample?.isEscalationTrigger && (
-                    <div className="absolute top-2 left-2 right-2 bg-amber-500/95 text-stone-950 text-[11px] font-bold px-2.5 py-1 rounded-lg shadow-md flex items-center justify-center gap-1.5 backdrop-blur-xs z-10">
-                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                    <div className="absolute top-2 left-2 right-2 bg-amber-500/95 text-stone-950 text-[11px] font-bold px-2.5 py-1 rounded-lg shadow-md flex items-center justify-center gap-1.5 backdrop-blur-xs z-10" role="status">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
                       <span>Ambiguous Sample: Tests &lt;70% Extension Escalation!</span>
                     </div>
                   )}
@@ -366,16 +401,17 @@ export function DiagnosisTab() {
                   {/* Quick Replace Hint Overlay at Bottom */}
                   <div className="absolute bottom-2 left-2 right-2 bg-stone-900/90 backdrop-blur-md rounded-xl p-2 border border-stone-700/80 flex items-center justify-between text-xs text-stone-300 z-10">
                     <span className="truncate text-[11px] text-stone-300 flex items-center gap-1.5">
-                      <ImageIcon className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                      {selectedSample ? selectedSample.name : 'Custom uploaded image'}
+                      <ImageIcon className="w-3.5 h-3.5 text-emerald-400 shrink-0" aria-hidden="true" />
+                      <span>{selectedSample ? selectedSample.name : 'Custom uploaded image'}</span>
                     </span>
                     <button
                       type="button"
+                      aria-label="Change current leaf photo"
                       onClick={(e) => {
                         e.stopPropagation();
                         fileInputRef.current?.click();
                       }}
-                      className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 shrink-0 ml-2"
+                      className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 shrink-0 ml-2 focus:outline-none focus:underline"
                     >
                       Change
                     </button>
@@ -387,7 +423,7 @@ export function DiagnosisTab() {
                   <div className={`w-14 h-14 rounded-2xl mx-auto flex items-center justify-center transition-all ${
                     isDraggingOver ? 'bg-emerald-600 text-white animate-bounce' : 'bg-stone-800 text-stone-400'
                   }`}>
-                    <Upload className="w-7 h-7" />
+                    <Upload className="w-7 h-7" aria-hidden="true" />
                   </div>
                   <div>
                     <p className="text-sm font-bold text-white">Drag &amp; Drop leaf photo here</p>
@@ -403,19 +439,23 @@ export function DiagnosisTab() {
             {/* Crop & Region Context inputs */}
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div>
-                <label className="text-stone-400 block mb-1 font-medium">Crop Type:</label>
+                <label htmlFor="crop-type-input" className="text-stone-400 block mb-1 font-medium">Crop Type:</label>
                 <input
+                  id="crop-type-input"
                   type="text"
                   value={cropContext}
+                  aria-label="Crop type context"
                   onChange={(e) => setCropContext(e.target.value)}
                   className="w-full bg-stone-800 text-stone-100 rounded-lg px-2.5 py-1.5 border border-stone-700 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 />
               </div>
               <div>
-                <label className="text-stone-400 block mb-1 font-medium">Region:</label>
+                <label htmlFor="region-type-input" className="text-stone-400 block mb-1 font-medium">Region:</label>
                 <input
+                  id="region-type-input"
                   type="text"
                   value={regionContext}
+                  aria-label="Region context"
                   onChange={(e) => setRegionContext(e.target.value)}
                   className="w-full bg-stone-800 text-stone-100 rounded-lg px-2.5 py-1.5 border border-stone-700 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 />
@@ -423,8 +463,8 @@ export function DiagnosisTab() {
             </div>
 
             {error && (
-              <div className="bg-rose-950/60 border border-rose-800 text-rose-300 text-xs p-2.5 rounded-xl flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+              <div role="alert" className="bg-rose-950/60 border border-rose-800 text-rose-300 text-xs p-2.5 rounded-xl flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" aria-hidden="true" />
                 <span>{error}</span>
               </div>
             )}
@@ -435,7 +475,9 @@ export function DiagnosisTab() {
               id="run-diagnosis-btn"
               onClick={runDiagnosis}
               disabled={isDiagnosing || !selectedImage}
-              className={`w-full py-3 px-4 rounded-xl text-sm font-bold shadow-md transition-all flex items-center justify-center gap-2 ${
+              aria-busy={isDiagnosing}
+              aria-label={isDiagnosing ? "Multimodal diagnosis in progress" : "Run Multimodal Diagnosis"}
+              className={`w-full py-3 px-4 rounded-xl text-sm font-bold shadow-md transition-all flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-emerald-400 ${
                 isDiagnosing || !selectedImage
                   ? 'bg-stone-800 text-stone-500 cursor-not-allowed border border-stone-700'
                   : 'bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400/40 hover:scale-[1.01] active:scale-[0.99]'
@@ -443,12 +485,12 @@ export function DiagnosisTab() {
             >
               {isDiagnosing ? (
                 <>
-                  <RefreshCw className="w-4 h-4 animate-spin text-emerald-300" />
+                  <RefreshCw className="w-4 h-4 animate-spin text-emerald-300" aria-hidden="true" />
                   <span>Gemini Vision Diagnosing Leaf...</span>
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-4 h-4 text-emerald-300" />
+                  <Sparkles className="w-4 h-4 text-emerald-300" aria-hidden="true" />
                   <span>Run Multimodal Diagnosis</span>
                 </>
               )}
@@ -456,7 +498,7 @@ export function DiagnosisTab() {
           </div>
 
           {/* Sample Leaves Deck */}
-          <div className="bg-stone-900 rounded-2xl border border-stone-800 p-4 sm:p-5 shadow-lg space-y-3">
+          <div className="bg-stone-900 rounded-2xl border border-stone-800 p-4 sm:p-5 shadow-lg space-y-3" role="region" aria-label="Sample Leaf Library">
             <div className="flex items-center justify-between">
               <h4 className="font-semibold text-xs text-stone-300 uppercase tracking-wider">
                 1-Click Sample Library
@@ -464,7 +506,7 @@ export function DiagnosisTab() {
               <span className="text-[11px] text-stone-400">Select to test</span>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2" role="group" aria-label="Sample leaf choices">
               {SAMPLE_LEAF_IMAGES.map((sample) => {
                 const isSelected = selectedSample?.id === sample.id;
                 return (
@@ -472,8 +514,10 @@ export function DiagnosisTab() {
                     key={sample.id}
                     type="button"
                     id={`sample-leaf-${sample.id}`}
+                    aria-pressed={isSelected}
+                    aria-label={`Sample: ${sample.name} for ${sample.crop}, ${sample.isEscalationTrigger ? 'ambiguous test case' : 'standard sample'}`}
                     onClick={() => handleSelectSample(sample)}
-                    className={`w-full text-left p-2.5 rounded-xl border transition-all flex items-center gap-3 ${
+                    className={`w-full text-left p-2.5 rounded-xl border transition-all flex items-center gap-3 focus:outline-none focus:ring-2 focus:ring-emerald-400 ${
                       isSelected
                         ? 'bg-emerald-950/60 border-emerald-500 ring-1 ring-emerald-500/50'
                         : sample.isEscalationTrigger
@@ -888,6 +932,85 @@ export function DiagnosisTab() {
           )}
         </div>
       </div>
+
+      {/* PERSISTENT SQLITE DIAGNOSIS HISTORY GALLERY */}
+      {savedDiagnoses.length > 0 && (
+        <div className="bg-stone-900 rounded-2xl border border-stone-800 p-4 sm:p-5 shadow-lg space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-stone-800">
+            <div className="flex items-center gap-2">
+              <Layers className="w-4 h-4 text-emerald-400" />
+              <h3 className="font-bold text-sm sm:text-base text-white">
+                Persistent Diagnosis Archive (SQLite Database)
+              </h3>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
+                Survives Browser Reload
+              </span>
+            </div>
+            <span className="text-xs text-stone-400">
+              {savedDiagnoses.length} verified image diagnoses persisted to disk
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {savedDiagnoses.map((rec) => (
+              <div
+                key={rec.id}
+                onClick={() => {
+                  setDiagnosisResult({
+                    identifiedCrop: rec.identifiedCrop,
+                    conditionName: rec.conditionName,
+                    scientificName: rec.scientificName,
+                    confidenceScore: rec.confidenceScore,
+                    severityLevel: rec.severityLevel,
+                    visualSymptoms: rec.visualSymptoms,
+                    biologicalCause: rec.biologicalCause,
+                    immediateRemedies: rec.immediateRemedies,
+                    chemicalOptions: rec.chemicalOptions,
+                    preventativeMeasures: rec.preventativeMeasures,
+                    extensionNotes: rec.extensionNotes,
+                  });
+                  if (rec.imageData && rec.imageData.startsWith('data:')) {
+                    setSelectedImage(rec.imageData);
+                  }
+                  window.scrollTo({ top: 120, behavior: 'smooth' });
+                }}
+                className="bg-stone-950/80 hover:bg-stone-950 p-3.5 rounded-xl border border-stone-800 hover:border-emerald-500/60 cursor-pointer transition-all space-y-2 group"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-white group-hover:text-emerald-300 transition-colors">
+                    {rec.identifiedCrop}
+                  </span>
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                      rec.confidenceScore < 70
+                        ? 'bg-amber-950 text-amber-300 border-amber-800'
+                        : 'bg-emerald-950 text-emerald-300 border-emerald-800'
+                    }`}
+                  >
+                    {rec.confidenceScore}% Conf
+                  </span>
+                </div>
+
+                <div className="text-xs text-stone-300 font-medium">
+                  {rec.conditionName}
+                </div>
+
+                <div className="text-[11px] text-stone-500 line-clamp-1">
+                  {rec.biologicalCause}
+                </div>
+
+                <div className="flex items-center justify-between text-[10px] text-stone-400 pt-2 border-t border-stone-800/80">
+                  <span>{new Date(rec.createdAt).toLocaleDateString()}</span>
+                  <span className="text-emerald-400 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                    <span>Inspect</span>
+                    <ChevronRight className="w-3 h-3" />
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

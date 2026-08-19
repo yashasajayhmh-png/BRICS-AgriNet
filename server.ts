@@ -3,6 +3,35 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import {
+  getDatabase,
+  dbGetDiagnosisHistory,
+  dbSaveDiagnosis,
+  dbGetEscalatedTickets,
+  dbUpdateTicketStatus,
+  dbGetOutbreakReports,
+  dbSaveOutbreakReport,
+  dbGetPlotsTelemetry,
+  dbSavePlotTelemetry,
+  dbGetFederatedRounds,
+  dbSaveFederatedRound,
+} from "./server/db";
+import {
+  getFallbackDiagnosis,
+  getFallbackAdvisory,
+  getFallbackSimulation,
+  getFallbackSynthesis,
+  getFallbackFederatedRound,
+  getFallbackOutbreakForecast,
+  getFallbackCopilotAssist,
+  getFallbackCreditAssessment,
+  executeWithRetry,
+} from "./server/fallbacks";
+import {
+  geminiMetrics,
+  executeObservedGeminiCall,
+} from "./server/observability";
+import { processImageInput } from "./server/imageSecurity";
 
 dotenv.config();
 
@@ -17,266 +46,12 @@ function getGenAIClient(): GoogleGenAI {
   });
 }
 
-// Resilient execution with retry for transient 503 / 429 / network errors
-async function executeWithRetry<T>(
-  action: () => Promise<T>,
-  fallback: (error: any) => T,
-  retries = 2,
-  delayMs = 1000
-): Promise<T> {
-  try {
-    return await action();
-  } catch (error: any) {
-    const errorMsg = error?.message || String(error);
-    const isTransient =
-      errorMsg.includes("503") ||
-      errorMsg.includes("high demand") ||
-      errorMsg.includes("UNAVAILABLE") ||
-      errorMsg.includes("429") ||
-      errorMsg.includes("RESOURCE_EXHAUSTED");
-
-    if (isTransient && retries > 0) {
-      console.warn(`Transient Gemini API spike (${errorMsg}). Retrying in ${delayMs}ms... (attempts left: ${retries})`);
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
-      return executeWithRetry(action, fallback, retries - 1, delayMs * 1.5);
-    }
-
-    console.warn(`Gemini API call failed (${errorMsg}), applying agronomic fallback.`);
-    return fallback(error);
-  }
-}
-
-// Fallback Generators for High Demand Periods
-function getFallbackDiagnosis(cropContext: string, region: string) {
-  const isSoybean = cropContext.toLowerCase().includes("soybean");
-  const isWheat = cropContext.toLowerCase().includes("wheat");
-  const isGroundnut = cropContext.toLowerCase().includes("groundnut") || cropContext.toLowerCase().includes("peanut");
-  const isAtypical = cropContext.toLowerCase().includes("atypical") || cropContext.toLowerCase().includes("chlorosis");
-
-  if (isAtypical) {
-    return {
-      identifiedCrop: "Field Crop (Atypical Chlorosis)",
-      conditionName: "Uncertain Early Leaf Blight vs Micronutrient Zinc Deficiency",
-      scientificName: "Suspected Bipolaris / Helminthosporium complex or Zn depletion",
-      confidenceScore: 58,
-      severityLevel: "Moderate",
-      visualSymptoms: [
-        "Diffuse non-uniform interveinal yellowing with irregular margins",
-        "Atypical faint brown necrotic lesions on lower margins",
-        "Ambiguous lesion borders without classical halo",
-      ],
-      biologicalCause: "Early vegetative symptom overlap between fungal spore penetration and subsoil zinc fixation under high pH.",
-      immediateRemedies: [
-        "Take 3 additional leaf samples from unaffected adjacent rows",
-        "Avoid indiscriminate broad-spectrum fungicide until human agronomist review",
-      ],
-      chemicalOptions: [
-        "Hold chemical spray pending KVK / EMATER extension verification",
-      ],
-      preventativeMeasures: [
-        "Test soil electrical conductivity (EC) and micro-nutrient profile",
-      ],
-      extensionNotes: "Urgent human extension triage recommended. Low diagnostic confidence (58% < 70%). Inspect leaf underside under 20x field lens for sporulation.",
-    };
-  }
-
-  if (isSoybean) {
-    return {
-      identifiedCrop: "Soybean (Glycine max)",
-      conditionName: "Asian Soybean Rust",
-      scientificName: "Phakopsora pachyrhizi",
-      confidenceScore: 92,
-      severityLevel: "Severe",
-      visualSymptoms: [
-        "Small, tan-to-reddish-brown polygonal lesions delimited by leaf veins",
-        "Volcano-shaped raised uredinia pustules on abaxial leaf surface",
-        "Premature chlorosis and accelerated canopy defoliation",
-      ],
-      biologicalCause: "Airborne Phakopsora fungal spores germinating in continuous leaf wetness (>6 hours) and 18-26°C temperatures.",
-      immediateRemedies: [
-        "Immediate preventive chemical barrier spray within 48 hours",
-        "Inspect lower canopy in neighboring plots to determine spread perimeter",
-      ],
-      chemicalOptions: [
-        "Triazole + Strobilurin tank mix: Azoxystrobin 18.2% + Difenoconazole 11.4% SC @ 1 ml/L",
-        "Protective Carboxamide: Fluxapyroxad + Pyraclostrobin",
-      ],
-      preventativeMeasures: [
-        "Observe mandatory regional sanitary void (vazio sanitário)",
-        "Adopt short-cycle cultivars to avoid late-season spore peaks",
-      ],
-      extensionNotes: "High-confidence triage (92%). Auto-reported to transboundary regional pest surveillance grid.",
-    };
-  }
-
-  if (isWheat) {
-    return {
-      identifiedCrop: "Wheat (Triticum aestivum)",
-      conditionName: "Stripe / Yellow Rust",
-      scientificName: "Puccinia striiformis f. sp. tritici",
-      confidenceScore: 89,
-      severityLevel: "High",
-      visualSymptoms: [
-        "Linear yellow-orange powdery pustule stripes parallel to leaf veins",
-        "Premature chlorotic drying of upper flag leaves",
-      ],
-      biologicalCause: "Cool, humid morning fog microclimates (10-15°C) facilitating rapid urediniospore sporulation.",
-      immediateRemedies: [
-        "Foliar application of Propiconazole 25% EC (Tilt) @ 500 ml/ha",
-        "Avoid excessive late-stage nitrogen top-dressing which increases canopy humidity",
-      ],
-      chemicalOptions: [
-        "Propiconazole 25% EC @ 1ml/L or Tebuconazole 25.9% EC @ 1ml/L",
-      ],
-      preventativeMeasures: [
-        "Plant certified resistant varieties (PBW 824 / HD 3086)",
-        "Implement border sentinel trap nurseries",
-      ],
-      extensionNotes: "High-confidence triage (89%). Standard PAU/ICAR protocol applied.",
-    };
-  }
-
-  // Default Groundnut / Legume
-  return {
-    identifiedCrop: "Groundnut / Peanut (Arachis hypogaea)",
-    conditionName: "Early Leaf Spot (Tikka Disease)",
-    scientificName: "Cercospora arachidicola (Passalora arachidicola)",
-    confidenceScore: 88,
-    severityLevel: "Moderate",
-    visualSymptoms: [
-      "Dark reddish-brown to black circular necrotic lesions on upper leaf surface",
-      "Prominent bright yellow chlorotic halos surrounding lesions",
-    ],
-    biologicalCause: "Airborne and soil-borne conidia spreading rapidly during warm, humid intermittent rain spells.",
-    immediateRemedies: [
-      "Spray 5% Neem Seed Kernel Extract (NSKE) or Trichoderma viride",
-      "Prune heavily infected lower leaves and bury outside field perimeter",
-    ],
-    chemicalOptions: [
-      "Mancozeb 75% WP @ 2g/L or Carbendazim 50% WP @ 1g/L",
-      "Hexaconazole 5% EC @ 2ml/L",
-    ],
-    preventativeMeasures: [
-      "Seed treatment with Trichoderma viride @ 4g/kg seed before sowing",
-      "Rotate with non-host cereals (Sorghum or Pearl Millet)",
-    ],
-    extensionNotes: "High-confidence automated triage (88%). Standard chemical and biological remedies recommended.",
-  };
-}
-
-function getFallbackAdvisory(query: string, plot: any) {
-  const crop = plot?.crop || "Crops";
-  const rain = plot?.rainfallForecast7d || 0;
-  const ph = plot?.soilPH || 7.0;
-
-  return {
-    agent: "Agronomic Advisory Agent",
-    telemetryAssessment: `Soil pH is measured at ${ph} with 7-day cumulative precipitation forecast of ${rain}mm. Current soil moisture is at ${plot?.soilMoisture || 50}%.`,
-    candidateRecommendations: [
-      {
-        id: "REC-1",
-        title: rain > 25 ? "Split Fertilizer Timing Post-Rain Window" : "Direct Fertilizer Top-Dressing & Foliar Care",
-        summary: rain > 25
-          ? `Hold broadcasting soluble nitrogen until the ${rain}mm rain window passes to prevent leaching losses.`
-          : `Apply balanced split dose under current ${plot?.soilMoisture || 50}% soil moisture conditions.`,
-        keyFactors: [
-          `Soil pH ${ph} availability baseline`,
-          `7-day rainfall forecast: ${rain}mm`,
-          `NDVI trajectory: ${plot?.ndviCurrent || 0.65}`,
-        ],
-        inputAdvice: `Nitrogen top-dressing: 40-45 kg/ha applied at root zone. Ensure foliar moisture dries before noon.`,
-        potentialRisks: `Risk of nitrogen leaching if applied directly before rainfall events exceeding 20mm.`,
-      },
-    ],
-    reasoningSteps: [
-      "Evaluated soil chemical baseline and macro-nutrient N-P-K reserves",
-      "Aligned input scheduling with upcoming 7-day precipitation probabilities",
-      "Cross-referenced agronomic recommendations with regional ICAR / EMBRAPA crop directives",
-    ],
-  };
-}
-
-function getFallbackSimulation(query: string, plot: any, candidateRecs: any) {
-  const rain = plot?.rainfallForecast7d || 0;
-  const isHighRain = rain > 35;
-
-  return {
-    agent: "Biophysical Simulation Check Agent",
-    engineSimulated: "APSIM-SoilWat v7.10 / DSSAT CROPGRO Biophysical Validator",
-    overallVerdict: isHighRain ? "MODIFIED_WITH_WARNINGS" : "PASSED",
-    plausibilityScore: isHighRain ? 78 : 91,
-    biophysicalChecks: [
-      {
-        module: "Water Balance & Precipitation Risk",
-        verdict: isHighRain ? "WARNING" : "PASS",
-        simulatedMetric: "Cumulative Infiltration vs Field Capacity",
-        observation: isHighRain
-          ? `Forecast of ${rain}mm will saturate top 15cm soil profile. High waterlogging index for young roots.`
-          : `Soil water infiltration within safe field capacity parameters (${plot?.soilMoisture || 50}% moisture).`,
-      },
-      {
-        module: "Nutrient Dynamics & Leaching",
-        verdict: isHighRain ? "WARNING" : "PASS",
-        simulatedMetric: "Nitrogen Mobility & Leaching Index",
-        observation: isHighRain
-          ? `Nitrate leaching risk elevated if broadcast before rain surge. Recommend split dosing post-downpour.`
-          : `Minimal leaching simulated; nutrient uptake window is favorable.`,
-      },
-      {
-        module: "Thermal / Phenological Window",
-        verdict: "PASS",
-        simulatedMetric: "Growing Degree Days (GDD)",
-        observation: `Thermal regime (${plot?.tempRange?.min || 15}°C - ${plot?.tempRange?.max || 28}°C) satisfies crop growth stages.`,
-      },
-    ],
-    simulationFlags: [
-      isHighRain
-        ? `Simulation alert: Hold soluble chemical top-dressing until after peak rainfall.`
-        : `Simulation confirmed: Moisture levels support steady nutrient absorption.`,
-    ],
-    requiredModifications: isHighRain
-      ? "Adjust nitrogen application to 48 hours after rain cessation to preserve active root zone concentration."
-      : "Proceed with scheduled agronomic management plan.",
-  };
-}
-
-function getFallbackSynthesis(query: string, plot: any, advisory: any, sim: any) {
-  const rec = advisory?.candidateRecommendations?.[0];
-  return {
-    agent: "Farmer Synthesis Agent",
-    finalAnswerMarkdown: `### **Direct Answer & Timing**
-Based on your plot telemetry in **${plot?.region || "your region"}** and current soil conditions, proceed with targeted management according to the schedule below.
-
----
-
-### **Step-by-Step Action Plan**
-1. **Soil & Moisture Check**: Current soil moisture is at **${plot?.soilMoisture || 52}%** with soil pH **${plot?.soilPH || 7.2}**.
-2. **Timing Window**: ${plot?.rainfallForecast7d > 25 ? `A cumulative rain forecast of **${plot.rainfallForecast7d}mm** is expected. Delay soluble fertilizer broadcasting until the soil surface has drained.` : `Weather conditions over the next 7 days are favorable. You can apply inputs during morning hours.`}
-3. **Application Method**: Apply nutrients in a banded ring 5-8cm from plant stems rather than broadcast scattering.
-
----
-
-### **Soil & Fertilizer Schedule**
-- **Nitrogen (N)**: Apply split dose of **40-45 kg/ha** at root zone.
-- **Phosphorus (P) & Potassium (K)**: Basal application maintained as per ${plot?.soilType || "local soil"} requirements.
-- **Micro-nutrients**: Inspect for interveinal yellowing (Zinc/Iron) on younger shoots.
-
----
-
-### **Biophysical Weather Safeguards (APSIM / DSSAT Check)**
-- **Simulation Verdict**: **${sim?.overallVerdict || "PASSED"}** (Plausibility Score: **${sim?.plausibilityScore || 88}/100**)
-- **Key Safeguard**: ${sim?.simulationFlags?.[0] || "Maintain standard irrigation intervals."}
-
----
-
-### **Local Extension Advice**
-If symptoms of fungal pustules or irregular chlorosis appear, take 3 representative leaf photos and consult your local **Krishi Vigyan Kendra (KVK) / EMATER / ARC** extension field officer for on-site verification.`,
-  };
-}
-
 async function startServer() {
   const app = express();
   const PORT = 3000;
+
+  // Initialize SQLite database schema
+  await getDatabase();
 
   app.use(express.json({ limit: "25mb" }));
 
@@ -286,10 +61,336 @@ async function startServer() {
       status: "ok",
       timestamp: new Date().toISOString(),
       hasKey: Boolean(process.env.GEMINI_API_KEY),
+      database: "sqlite3",
     });
   });
 
-  // Agent 1: Agronomic Advisory Agent
+  // ==========================================
+  // PERSISTENCE (SQLITE REST ENDPOINTS)
+  // ==========================================
+
+  // Diagnosis History
+  app.get("/api/db/diagnoses", async (_req, res) => {
+    try {
+      const history = await dbGetDiagnosisHistory();
+      res.json({ success: true, data: history });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Escalated Tickets
+  app.get("/api/db/tickets", async (_req, res) => {
+    try {
+      const tickets = await dbGetEscalatedTickets();
+      res.json({ success: true, data: tickets });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.patch("/api/db/tickets/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status, agronomistNotes, prescribedTreatment } = req.body;
+      await dbUpdateTicketStatus(id, status, agronomistNotes, prescribedTreatment);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Outbreak Reports
+  app.get("/api/db/outbreaks", async (_req, res) => {
+    try {
+      const reports = await dbGetOutbreakReports();
+      res.json({ success: true, data: reports });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Plot Telemetry
+  app.get("/api/db/plots", async (_req, res) => {
+    try {
+      const plots = await dbGetPlotsTelemetry();
+      res.json({ success: true, data: plots });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.put("/api/db/plots/:id", async (req, res) => {
+    try {
+      const updated = await dbSavePlotTelemetry(req.body);
+      res.json({ success: true, data: updated });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Federated Training History
+  app.get("/api/db/federated", async (_req, res) => {
+    try {
+      const history = await dbGetFederatedRounds();
+      res.json({ success: true, data: history });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // ==========================================
+  // GEMINI OBSERVABILITY & FAILURE METRICS
+  // ==========================================
+  app.get("/api/metrics/gemini", (_req, res) => {
+    try {
+      const snapshot = geminiMetrics.getSnapshot();
+      res.json({ success: true, data: snapshot });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post("/api/metrics/gemini/reset", (_req, res) => {
+    try {
+      geminiMetrics.reset();
+      res.json({ success: true, message: "Gemini observability metrics reset successfully" });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // ==========================================
+  // TAB 1: Farmer Advisory Endpoints (Multi-Agent Pipeline)
+  // ==========================================
+
+  // SSE Real-Time Streaming 3-Agent Pipeline
+  app.post("/api/agent/stream-pipeline", async (req, res) => {
+    // Setup Server-Sent Events (SSE) headers
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    if (res.flushHeaders) res.flushHeaders();
+
+    const sendEvent = (event: string, data: any) => {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      if (typeof (res as any).flush === 'function') {
+        (res as any).flush();
+      }
+    };
+
+    const { query, plotTelemetry } = req.body;
+    const ai = getGenAIClient();
+
+    try {
+      // -------------------------------------------------------------
+      // STEP 1: Agronomic Advisory Agent (Agent 1/3)
+      // -------------------------------------------------------------
+      sendEvent("agent_start", { agent: "advisory", step: 1, label: "Agronomic Advisory Agent" });
+
+      const advisoryPrompt = `Farmer Question: "${query}"
+
+Plot Telemetry & Environmental Sensors:
+${JSON.stringify(plotTelemetry, null, 2)}
+
+Provide your agronomic analysis and candidate recommendations as structured JSON.`;
+
+      const advisoryData = await executeObservedGeminiCall({
+        endpoint: "stream-pipeline/advisory-agent",
+        model: "gemini-3.7-flash",
+        action: async () => {
+          const response = await ai.models.generateContent({
+            model: "gemini-3.7-flash",
+            contents: advisoryPrompt,
+            config: {
+              systemInstruction: `You are the BRICS AgriNet Agronomic Advisory Agent (Agent 1/3), an expert crop scientist and agricultural extension specialist for smallholder farmers across BRICS nations.
+Analyze the query and telemetry to formulate 1-2 candidate agronomic recommendations that are practical, localized to the region/season, and detailed.
+Return valid JSON with:
+{
+  "agent": "Agronomic Advisory Agent",
+  "telemetryAssessment": "concise 2-sentence summary of soil and weather conditions",
+  "candidateRecommendations": [
+    {
+      "id": "REC-1",
+      "title": "Clear action title",
+      "summary": "Specific guidance on timing, variety/practices, and application",
+      "keyFactors": ["factor 1", "factor 2"],
+      "inputAdvice": "Precise fertilizer/seed/water inputs with metrics",
+      "potentialRisks": "Agronomic risks to consider"
+    }
+  ],
+  "reasoningSteps": [
+    "step 1: evaluation of soil parameters",
+    "step 2: weather forecast alignment",
+    "step 3: crop physiological cycle match"
+  ]
+}`,
+              responseMimeType: "application/json",
+              temperature: 0.2,
+            },
+          });
+          const text = response.text || "{}";
+          return JSON.parse(text);
+        },
+        fallback: () => getFallbackAdvisory(query, plotTelemetry),
+        meta: { query, crop: plotTelemetry?.crop, plotId: plotTelemetry?.id },
+      });
+
+      sendEvent("agent_completed", {
+        agent: "advisory",
+        step: 1,
+        data: advisoryData,
+      });
+
+      // -------------------------------------------------------------
+      // STEP 2: Biophysical Simulation Check Agent (Agent 2/3)
+      // -------------------------------------------------------------
+      sendEvent("agent_start", { agent: "simulation", step: 2, label: "Biophysical Simulation Check Agent" });
+
+      const simPrompt = `Farmer Query: "${query}"
+Plot Telemetry:
+${JSON.stringify(plotTelemetry, null, 2)}
+
+Proposed Candidate Recommendations from Advisory Agent:
+${JSON.stringify(advisoryData?.candidateRecommendations || [], null, 2)}
+
+Run biophysical constraint validation and return results in JSON.`;
+
+      const simData = await executeObservedGeminiCall({
+        endpoint: "stream-pipeline/simulation-agent",
+        model: "gemini-3.7-flash",
+        action: async () => {
+          const response = await ai.models.generateContent({
+            model: "gemini-3.7-flash",
+            contents: simPrompt,
+            config: {
+              systemInstruction: `You are the BRICS AgriNet Biophysical Simulation Check Agent (Agent 2/3).
+You act as an agronomic plausibility and biophysical constraint validator, standing in for crop growth biophysical engines like APSIM and DSSAT.
+Return strictly valid JSON:
+{
+  "agent": "Biophysical Simulation Check Agent",
+  "engineSimulated": "APSIM-SoilWat v7.10 / DSSAT CROPGRO Biophysical Validator",
+  "overallVerdict": "PASSED" | "MODIFIED_WITH_WARNINGS" | "FLAGGED_RISK",
+  "plausibilityScore": 85,
+  "biophysicalChecks": [
+    {
+      "module": "Water Balance & Precipitation Risk",
+      "verdict": "PASS" | "WARNING" | "FAIL",
+      "simulatedMetric": "Cumulative 7-Day Infiltration vs Field Capacity",
+      "observation": "Detailed check observation"
+    },
+    {
+      "module": "Nutrient Dynamics & Leaching",
+      "verdict": "PASS" | "WARNING" | "FAIL",
+      "simulatedMetric": "Nitrogen Mobility Index",
+      "observation": "Detailed check observation"
+    },
+    {
+      "module": "Thermal / Phenological Window",
+      "verdict": "PASS" | "WARNING" | "FAIL",
+      "simulatedMetric": "Growing Degree Days (GDD)",
+      "observation": "Detailed check observation"
+    }
+  ],
+  "simulationFlags": [
+    "Specific warning or validation flag"
+  ],
+  "requiredModifications": "Specific adjustments recommended to safeguard farmer yield"
+}`,
+              responseMimeType: "application/json",
+              temperature: 0.2,
+            },
+          });
+          const text = response.text || "{}";
+          return JSON.parse(text);
+        },
+        fallback: () => getFallbackSimulation(query, plotTelemetry, advisoryData?.candidateRecommendations),
+        meta: { query, plotId: plotTelemetry?.id },
+      });
+
+      sendEvent("agent_completed", {
+        agent: "simulation",
+        step: 2,
+        data: simData,
+      });
+
+      // -------------------------------------------------------------
+      // STEP 3: Farmer Synthesis Agent (Agent 3/3) - Token Streaming
+      // -------------------------------------------------------------
+      sendEvent("agent_start", { agent: "synthesis", step: 3, label: "Farmer Synthesis Agent" });
+
+      const synthPrompt = `Farmer Query: "${query}"
+Plot Location & Crop: ${plotTelemetry?.location || "Unknown"} - ${plotTelemetry?.crop || "Crop"}
+Soil & Weather Snapshot: pH ${plotTelemetry?.soilPH}, N-P-K ${plotTelemetry?.nitrogen}-${plotTelemetry?.phosphorus}-${plotTelemetry?.potassium}, Rain 7d: ${plotTelemetry?.rainfallForecast7d}mm, Soil Moisture: ${plotTelemetry?.soilMoisture}%
+
+Advisory Agent Output:
+${JSON.stringify(advisoryData, null, 2)}
+
+Biophysical Simulation Output:
+${JSON.stringify(simData, null, 2)}
+
+Synthesize into an actionable, empathetic, farmer-readable markdown guide.`;
+
+      const fullSynthesisMarkdown = await executeObservedGeminiCall({
+        endpoint: "stream-pipeline/synthesis-agent",
+        model: "gemini-3.7-flash",
+        action: async () => {
+          if (!process.env.GEMINI_API_KEY) {
+            throw new Error("API key not configured");
+          }
+          const streamResponse = await ai.models.generateContentStream({
+            model: "gemini-3.7-flash",
+            contents: synthPrompt,
+            config: {
+              systemInstruction: `You are the BRICS AgriNet Farmer Synthesis Agent (Agent 3/3).
+Combine the agronomic guidance and the biophysical simulation safeguards into a single, cohesive, plain-language advisory that a smallholder farmer can immediately act on.
+Format with clear markdown sections:
+- **Direct Answer & Timing**: (Bottom-line verdict in simple terms)
+- **Step-by-Step Action Plan**: (Clear chronological steps for field preparation, sowing, or management)
+- **Soil & Fertilizer Schedule**: (Exact dosages tailored to the plot's N-P-K and moisture)
+- **Biophysical Weather Safeguards**: (Key risks flagged by the simulation engine and how to avoid losses)
+- **Local Extension Advice**: (When to consult the local KVK / EMATER agronomist)`,
+              temperature: 0.3,
+            },
+          });
+
+          let collectedText = "";
+          for await (const chunk of streamResponse) {
+            const chunkText = chunk.text;
+            if (chunkText) {
+              collectedText += chunkText;
+              sendEvent("synthesis_chunk", { chunk: chunkText });
+            }
+          }
+          return collectedText || "Synthesis complete.";
+        },
+        fallback: () => {
+          const fallback = getFallbackSynthesis(query, plotTelemetry, advisoryData, simData);
+          sendEvent("synthesis_chunk", { chunk: fallback.finalAnswerMarkdown });
+          return fallback.finalAnswerMarkdown;
+        },
+        meta: { query, plotId: plotTelemetry?.id },
+      });
+
+      sendEvent("agent_completed", {
+        agent: "synthesis",
+        step: 3,
+        data: {
+          agent: "Farmer Synthesis Agent",
+          finalAnswerMarkdown: fullSynthesisMarkdown || "Synthesis complete.",
+        },
+      });
+
+      sendEvent("done", { success: true });
+      res.end();
+    } catch (globalError: any) {
+      console.error("SSE stream pipeline error:", globalError);
+      sendEvent("error", { message: globalError.message || "Pipeline error" });
+      res.end();
+    }
+  });
+
+  // Agent 1: Agronomic Advisory Agent (Standalone endpoint)
   app.post("/api/agent/advisory", async (req, res) => {
     try {
       const { query, plotTelemetry } = req.body;
@@ -302,8 +403,10 @@ ${JSON.stringify(plotTelemetry, null, 2)}
 
 Provide your agronomic analysis and candidate recommendations as structured JSON.`;
 
-      const data = await executeWithRetry(
-        async () => {
+      const data = await executeObservedGeminiCall({
+        endpoint: "advisory-standalone",
+        model: "gemini-3.7-flash",
+        action: async () => {
           const response = await ai.models.generateContent({
             model: "gemini-3.7-flash",
             contents: prompt,
@@ -337,8 +440,9 @@ Return valid JSON with:
           const text = response.text || "{}";
           return JSON.parse(text);
         },
-        () => getFallbackAdvisory(query, plotTelemetry)
-      );
+        fallback: () => getFallbackAdvisory(query, plotTelemetry),
+        meta: { query, plotId: plotTelemetry?.id },
+      });
 
       res.json({ success: true, data });
     } catch (error: any) {
@@ -365,8 +469,10 @@ ${JSON.stringify(candidateRecommendations, null, 2)}
 
 Run biophysical constraint validation and return results in JSON.`;
 
-      const data = await executeWithRetry(
-        async () => {
+      const data = await executeObservedGeminiCall({
+        endpoint: "simulation-check-standalone",
+        model: "gemini-3.7-flash",
+        action: async () => {
           const response = await ai.models.generateContent({
             model: "gemini-3.7-flash",
             contents: prompt,
@@ -411,8 +517,9 @@ Return strictly valid JSON:
           const text = response.text || "{}";
           return JSON.parse(text);
         },
-        () => getFallbackSimulation(query, plotTelemetry, candidateRecommendations)
-      );
+        fallback: () => getFallbackSimulation(query, plotTelemetry, candidateRecommendations),
+        meta: { query, plotId: plotTelemetry?.id },
+      });
 
       res.json({ success: true, data });
     } catch (error: any) {
@@ -442,8 +549,10 @@ ${JSON.stringify(simulationResult, null, 2)}
 
 Synthesize into an actionable, empathetic, farmer-readable markdown guide.`;
 
-      const data = await executeWithRetry(
-        async () => {
+      const data = await executeObservedGeminiCall({
+        endpoint: "synthesis-standalone",
+        model: "gemini-3.7-flash",
+        action: async () => {
           const response = await ai.models.generateContent({
             model: "gemini-3.7-flash",
             contents: prompt,
@@ -464,8 +573,9 @@ Format with clear markdown sections:
             finalAnswerMarkdown: response.text || "No synthesis generated.",
           };
         },
-        () => getFallbackSynthesis(query, plotTelemetry, advisoryResult, simulationResult)
-      );
+        fallback: () => getFallbackSynthesis(query, plotTelemetry, advisoryResult, simulationResult),
+        meta: { query, plotId: plotTelemetry?.id },
+      });
 
       res.json({ success: true, data });
     } catch (error: any) {
@@ -477,7 +587,9 @@ Format with clear markdown sections:
     }
   });
 
-  // Multimodal Crop Photo Diagnosis Agent
+  // ==========================================
+  // TAB 2: Multimodal Crop Photo Diagnosis Agent (Saved to SQLite DB)
+  // ==========================================
   app.post("/api/agent/diagnose-crop", async (req, res) => {
     try {
       const { imageBase64, mimeType = "image/jpeg", cropContext = "Unknown Crop", region = "BRICS Region" } = req.body;
@@ -487,31 +599,22 @@ Format with clear markdown sections:
         return res.status(400).json({ success: false, error: "Image data is required." });
       }
 
-      let base64Data = "";
-      let detectedMimeType = mimeType || "image/jpeg";
-
-      // If a URL was passed (e.g. Unsplash sample photos), download and convert to base64 buffer
-      if (imageBase64.startsWith("http://") || imageBase64.startsWith("https://")) {
-        try {
-          const imageRes = await fetch(imageBase64);
-          if (imageRes.ok) {
-            const arrayBuffer = await imageRes.arrayBuffer();
-            base64Data = Buffer.from(arrayBuffer).toString("base64");
-            const contentType = imageRes.headers.get("content-type");
-            if (contentType && contentType.startsWith("image/")) {
-              detectedMimeType = contentType;
-            }
-          }
-        } catch (fetchErr: any) {
-          console.warn("Could not fetch remote image URL directly:", fetchErr);
-        }
-      } else {
-        // Remove data URL prefix if present
-        base64Data = imageBase64.replace(/^data:image\/[a-zA-Z+.-]+;base64,/, "");
+      let processedImage;
+      try {
+        processedImage = await processImageInput(imageBase64, mimeType || "image/jpeg");
+      } catch (validationErr: any) {
+        return res.status(400).json({
+          success: false,
+          error: validationErr.message || "Invalid or disallowed image payload",
+        });
       }
 
-      const data = await executeWithRetry(
-        async () => {
+      const { base64Data, detectedMimeType } = processedImage;
+
+      const data = await executeObservedGeminiCall({
+        endpoint: "diagnose-crop-vision",
+        model: "gemini-3.7-flash",
+        action: async () => {
           if (!base64Data) {
             throw new Error("No image data available for multimodal analysis");
           }
@@ -564,16 +667,338 @@ Return valid JSON:
           const text = response.text || "{}";
           return JSON.parse(text);
         },
-        () => getFallbackDiagnosis(cropContext, region)
-      );
+        fallback: () => getFallbackDiagnosis(cropContext, region),
+        meta: { cropContext, region },
+      });
 
-      res.json({ success: true, data });
+      // Persist diagnosis to SQLite database
+      const savedRecord = await dbSaveDiagnosis(data, imageBase64, region);
+
+      res.json({ success: true, data: savedRecord });
     } catch (error: any) {
       console.error("Crop diagnosis error:", error);
       res.status(500).json({
         success: false,
         error: error.message || "Failed to diagnose crop image",
       });
+    }
+  });
+
+  // ==========================================
+  // TAB 3: Federated Learning Commons Agent (Cross-Silo Aggregator & Saved to SQLite DB)
+  // ==========================================
+  app.post("/api/agent/federated-round", async (req, res) => {
+    try {
+      const { roundNumber = 1, silos = [], epsilon = 0.5, aggregationMethod = "DP-FedAvg" } = req.body;
+      const ai = getGenAIClient();
+
+      // Mathematically advance local silos
+      const updatedSilos = silos.map((s: any) => {
+        const accuracyGain = Number((4.5 + Math.random() * 2.2).toFixed(1));
+        const newAccuracy = Math.min(s.targetAccuracy || 93.0, Number(((s.localAccuracy || 75.0) + accuracyGain).toFixed(1)));
+        const newLoss = Math.max(0.08, Number(((s.currentLoss || 0.42) - 0.065).toFixed(3)));
+        
+        const dpNoiseScale = 0.015 / Math.max(0.1, epsilon);
+        const newVectors = (s.weightDeltaVectors || [0.04, -0.02, 0.08, -0.03, 0.05, -0.01]).map(
+          (w: number) => Number((w * 0.85 + (Math.random() * dpNoiseScale * 2 - dpNoiseScale)).toFixed(3))
+        );
+
+        return {
+          ...s,
+          localAccuracy: newAccuracy,
+          currentLoss: newLoss,
+          weightDeltaVectors: newVectors,
+        };
+      });
+
+      const avgLocalAcc = updatedSilos.reduce((acc: number, s: any) => acc + s.localAccuracy, 0) / (updatedSilos.length || 1);
+      const computedGlobalAcc = Math.min(95.4, Number((avgLocalAcc + 3.2).toFixed(1)));
+      const consumedEpsilon = Number((epsilon * (roundNumber * 0.4)).toFixed(2));
+
+      const prompt = `Federated Round: ${roundNumber}
+Aggregation Method: ${aggregationMethod}
+Differential Privacy Epsilon: ${epsilon}
+Sovereign Cloud Silos Participating:
+${JSON.stringify(updatedSilos.map((s: any) => ({
+  country: s.country,
+  institution: s.nationalInstitution,
+  recordsCount: s.records?.length || 8,
+  localAccuracy: s.localAccuracy,
+  loss: s.currentLoss,
+  weightDeltaSample: s.weightDeltaVectors?.slice(0, 3)
+})), null, 2)}
+
+Evaluate cross-silo gradient convergence, non-IID soil variance, and issue a Sovereign Privacy Compliance Audit Certificate.`;
+
+      const aiAudit = await executeObservedGeminiCall({
+        endpoint: "federated-round-coordinator",
+        model: "gemini-3.7-flash",
+        action: async () => {
+          const response = await ai.models.generateContent({
+            model: "gemini-3.7-flash",
+            contents: prompt,
+            config: {
+              systemInstruction: `You are the BRICS AgriNet Federated Aggregation Coordinator Agent (Academic Lead: Dr. Durrant / Indore Declaration Protocol).
+Analyze the gradient updates from sovereign agricultural clouds (ICAR India, Embrapa Brazil, ARC South Africa, CAAS China).
+Ensure that:
+1. Differential privacy noise bounds (Laplace mechanism) prevent reconstruction of individual farmer coordinates or crop yields.
+2. Non-IID data divergence across disparate soil types is mitigated via adaptive global weighting.
+3. Sovereign data governance mandates are 100% verified.
+
+Return valid JSON:
+{
+  "coordinatorNotes": "Concise technical summary of gradient convergence and loss reduction across sovereign silos.",
+  "nonIIDDivergenceIndex": 0.24,
+  "sovereignAuditCertificate": "Official cryptographic verification string confirming zero raw farmer PII left sovereign clouds."
+}`,
+              responseMimeType: "application/json",
+              temperature: 0.2,
+            },
+          });
+          const text = response.text || "{}";
+          return JSON.parse(text);
+        },
+        fallback: () => getFallbackFederatedRound(roundNumber, aggregationMethod),
+        meta: { roundNumber, aggregationMethod },
+      });
+
+      const roundResult = {
+        roundNumber,
+        globalAccuracy: computedGlobalAcc,
+        updatedSilos,
+        privacyBudgetConsumedEpsilon: consumedEpsilon,
+        aggregationMethod,
+        coordinatorNotes: aiAudit.coordinatorNotes,
+        nonIIDDivergenceIndex: aiAudit.nonIIDDivergenceIndex || 0.24,
+        sovereignAuditCertificate: aiAudit.sovereignAuditCertificate,
+      };
+
+      // Persist round state to SQLite DB
+      await dbSaveFederatedRound(roundResult);
+
+      res.json({ success: true, data: roundResult });
+    } catch (error: any) {
+      console.error("Federated round error:", error);
+      res.status(500).json({ success: false, error: error.message || "Failed to execute federated round" });
+    }
+  });
+
+  // ==========================================
+  // TAB 4: Outbreak Early-Warning Sentinel Agent (Saved to SQLite DB)
+  // ==========================================
+  app.post("/api/agent/outbreak-forecast", async (req, res) => {
+    try {
+      const { reports = [], clusteringThresholdKm = 10.0, targetZone = "all" } = req.body;
+      const ai = getGenAIClient();
+
+      const borderReports = reports.filter((r: any) => (r.distanceToBorderKm || 99) <= clusteringThresholdKm);
+      const isClustered = borderReports.length >= 2;
+
+      const prompt = `Active Transboundary Outbreak Reports:
+${JSON.stringify(reports, null, 2)}
+
+Filter Parameters:
+- Clustering Threshold: ${clusteringThresholdKm} km to international border
+- Target Corridor: ${targetZone}
+- Border Cluster Triggered: ${isClustered} (${borderReports.length} incidents within ${clusteringThresholdKm}km of sovereign border)
+
+Provide a 14-day transboundary spore dispersion and pest swarm trajectory forecast based on FAO DLIS standards.`;
+
+      const data = await executeObservedGeminiCall({
+        endpoint: "outbreak-forecast-sentinel",
+        model: "gemini-3.7-flash",
+        action: async () => {
+          const response = await ai.models.generateContent({
+            model: "gemini-3.7-flash",
+            contents: prompt,
+            config: {
+              systemInstruction: `You are the BRICS AgriNet Transboundary Outbreak Sentinel Agent (Grounded in FAO Desert Locust Information Service & Airborne Phytopathology models).
+Analyze real-time border spore densities (Asian Soybean Rust, Wheat Stripe Rust, Desert Locust, Fall Armyworm).
+Calculate atmospheric transport indices and prescribe bilateral coordination protocols between neighboring sovereign nations.
+
+Return valid JSON:
+{
+  "transboundaryRiskLevel": "MODERATE" | "HIGH" | "CRITICAL",
+  "clusterDetected": true,
+  "clusterCount": 3,
+  "primaryVector": "Atmospheric high-altitude wind vector carrying urediniospores across the Paraguay-Brazil border corridor",
+  "fourteenDaySpreadPrediction": "Detailed 14-day projection of spore arrival and susceptible crop acreage at risk.",
+  "atmosphericTransportIndex": 87,
+  "multilateralDirectives": [
+    "Activate joint bilateral buffer zone scouting within 15 km of international border",
+    "Mandate prophylactic multisite fungicide barrier application in downwind cooperatives",
+    "Transmit synchronized Sentinel-2 NDRE vegetative stress coordinates to neighboring national ministry"
+  ],
+  "bufferZoneActionPlan": "Specific geographic recommendations for containment zone width and aerial survey intervals.",
+  "affectedBorderBilateralCorridors": [
+    "Brazil (Mato Grosso do Sul) - Paraguay (Amambay)",
+    "India (Punjab) - Pakistan (Punjab Sector)"
+  ]
+}`,
+              responseMimeType: "application/json",
+              temperature: 0.2,
+            },
+          });
+          const text = response.text || "{}";
+          return JSON.parse(text);
+        },
+        fallback: () => getFallbackOutbreakForecast(reports, isClustered, borderReports.length),
+        meta: { reportsCount: reports.length, isClustered },
+      });
+
+      res.json({ success: true, data });
+    } catch (error: any) {
+      console.error("Outbreak forecast error:", error);
+      res.status(500).json({ success: false, error: error.message || "Failed to generate outbreak forecast" });
+    }
+  });
+
+  app.post("/api/agent/report-outbreak", async (req, res) => {
+    try {
+      const { country, region, crop, pestDisease, severity, coordinates, distanceToBorderKm, neighboringCountry, verifiedBy } = req.body;
+      const newReport = {
+        id: `out-${Date.now()}`,
+        date: new Date().toISOString().split("T")[0],
+        country: country || "Brazil",
+        flag: country?.includes("India") ? "🇮🇳" : country?.includes("South Africa") ? "🇿🇦" : country?.includes("Paraguay") ? "🇵🇾" : "🇧🇷",
+        region: region || "Border Agro-Station",
+        crop: crop || "Soybean",
+        pestDisease: pestDisease || "Asian Soybean Rust Spore Flare",
+        severity: severity || "Severe",
+        sporeDensityIndex: Math.floor(75 + Math.random() * 23),
+        coordinates: coordinates || { lat: -22.5, lng: -55.7 },
+        distanceToBorderKm: Number(distanceToBorderKm || 3.5),
+        neighboringCountry: neighboringCountry || "Paraguay",
+        verifiedBy: verifiedBy || "Field Agronomist Sentinel",
+      };
+
+      // Persist outbreak report to SQLite DB
+      await dbSaveOutbreakReport(newReport as any);
+
+      res.json({ success: true, data: newReport });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // ==========================================
+  // TAB 5: Extension Copilot Endpoints (AI Triage & Cropin SmartRisk Scorer)
+  // ==========================================
+  app.post("/api/agent/copilot-ai-assist", async (req, res) => {
+    try {
+      const { ticket, fieldNotes } = req.body;
+      const ai = getGenAIClient();
+
+      const prompt = `Escalated Human-in-the-Loop Case for Agronomist Verification:
+Farmer: ${ticket?.farmerName} (${ticket?.country})
+Crop: ${ticket?.crop}
+AI Diagnosis: ${ticket?.aiSuggestedCondition} (Confidence: ${ticket?.confidenceScore}%)
+Triage Reason: ${ticket?.triageReason}
+Field Notes from Extension Officer: "${fieldNotes || "None provided"}"
+RAG Grounding Citations:
+${JSON.stringify(ticket?.ragCitations || [], null, 2)}
+
+Provide an expert agronomist verification brief, differential diagnosis breakdown, safety contraindications, and verified prescription draft.`;
+
+      const data = await executeObservedGeminiCall({
+        endpoint: "copilot-ai-assist",
+        model: "gemini-3.7-flash",
+        action: async () => {
+          const response = await ai.models.generateContent({
+            model: "gemini-3.7-flash",
+            contents: prompt,
+            config: {
+              systemInstruction: `You are the BRICS AgriNet Senior Extension Agronomist Copilot.
+Assist field officers (KVK, EMATER, ARC) in validating borderline or ambiguous crop disease cases.
+Synthesize verified research literature into a rigorous prescription recommendation with actionable safety warnings.
+
+Return valid JSON:
+{
+  "ticketId": "${ticket?.id || "tkt-001"}",
+  "differentialDiagnosis": "Precise distinction between suspected fungal pathogen and physiological abiotic stress.",
+  "ragCorroboration": "Direct citation of research directives supporting the verification.",
+  "recommendedPrescription": "Exact chemical or biocontrol dosages, tank mixing rules, and application timing.",
+  "safetyContraindications": [
+    "Do not apply when ambient wind speed exceeds 12 km/h",
+    "Observe 14-day pre-harvest interval (PHI)"
+  ],
+  "fieldVerificationChecklist": [
+    "Check abaxial leaf surface under 20x pocket magnifier",
+    "Sample 5 random plants in a 'W' pattern"
+  ],
+  "estimatedYieldRecoveryPct": 92
+}`,
+              responseMimeType: "application/json",
+              temperature: 0.2,
+            },
+          });
+          const text = response.text || "{}";
+          return JSON.parse(text);
+        },
+        fallback: () => getFallbackCopilotAssist(ticket, fieldNotes),
+        meta: { ticketId: ticket?.id },
+      });
+
+      res.json({ success: true, data });
+    } catch (error: any) {
+      console.error("Copilot assist error:", error);
+      res.status(500).json({ success: false, error: error.message || "Failed to generate copilot assist" });
+    }
+  });
+
+  app.post("/api/agent/copilot-credit-assessment", async (req, res) => {
+    try {
+      const { plotTelemetry } = req.body;
+      const ai = getGenAIClient();
+
+      const prompt = `Assess Agri-Credit Worthiness & Digital MRV Carbon Performance:
+Farmer / Plot: ${plotTelemetry?.name} (${plotTelemetry?.country})
+Crop: ${plotTelemetry?.crop}
+Historical Yield Consistency: ${plotTelemetry?.historicalYieldAvg || 4.5} tons/ha
+NDVI Stability Index: ${plotTelemetry?.ndviCurrent || 0.72}
+Soil Organic Carbon: ${plotTelemetry?.organicCarbonPercent || 1.8}%
+Episodic Memories:
+${JSON.stringify(plotTelemetry?.episodicMemories || [], null, 2)}
+
+Compute dynamic credit score (0-100), rating grade, microloan ceiling, and dMRV carbon revenue estimation (Cropin SmartRisk model).`;
+
+      const data = await executeObservedGeminiCall({
+        endpoint: "copilot-credit-assessment",
+        model: "gemini-3.7-flash",
+        action: async () => {
+          const response = await ai.models.generateContent({
+            model: "gemini-3.7-flash",
+            contents: prompt,
+            config: {
+              systemInstruction: `You are the BRICS AgriNet SmartRisk & Digital MRV Assessment Agent (Cropin Model + Sentinel-2 dMRV Standards).
+Analyze agronomic adherence, NDVI consistency, yield resilience, and regenerative soil practices to calculate creditworthiness and carbon credit revenue.
+
+Return valid JSON:
+{
+  "plotId": "${plotTelemetry?.id || "plot-01"}",
+  "creditScore": 86,
+  "ratingGrade": "A+",
+  "defaultProbabilityPct": 2.4,
+  "maxMicroLoanUSD": 4500,
+  "carbonCreditsEarnedUSD": 76.50,
+  "justification": "Comprehensive assessment of farmer creditworthiness based on multi-season yield stability and zero-stubble regenerative practices.",
+  "dMRVCertificateHash": "SHA256-dMRV-SENTINEL-VERIFIED-HASH"
+}`,
+              responseMimeType: "application/json",
+              temperature: 0.2,
+            },
+          });
+          const text = response.text || "{}";
+          return JSON.parse(text);
+        },
+        fallback: () => getFallbackCreditAssessment(plotTelemetry),
+        meta: { plotId: plotTelemetry?.id },
+      });
+
+      res.json({ success: true, data });
+    } catch (error: any) {
+      console.error("Credit assessment error:", error);
+      res.status(500).json({ success: false, error: error.message || "Failed to assess credit worthiness" });
     }
   });
 

@@ -130,7 +130,7 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
       setIsSpeaking(false);
     }
 
-    // Step 1: Initialize Advisory Agent
+    // Initialize state
     setAgentState({
       currentStep: 1,
       advisoryStatus: 'running',
@@ -143,8 +143,8 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
     });
 
     try {
-      // 1. Call Advisory Agent
-      const advisoryRes = await fetch('/api/agent/advisory', {
+      // Connect to real-time Server-Sent Events (SSE) streaming pipeline
+      const response = await fetch('/api/agent/stream-pipeline', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -153,171 +153,169 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
         }),
       });
 
-      let advisoryJson: AdvisoryAgentResponse;
-      if (advisoryRes.ok) {
-        const result = await advisoryRes.json();
-        advisoryJson = result.data;
-      } else {
-        // Fallback realistic response if API fails
-        advisoryJson = {
-          agent: 'Agronomic Advisory Agent (Fallback Mode)',
-          telemetryAssessment: `Soil moisture (${selectedPlot.soilMoisture}%) is moderate with ${selectedPlot.rainfallForecast7d}mm forecast over 7 days. Soil pH is ${selectedPlot.soilPH}.`,
-          candidateRecommendations: [
-            {
-              id: 'REC-01',
-              title: 'Delayed Sowing Window Post-Rain Surge',
-              summary: `Postpone main seed drilling until Day 4 after the initial ${selectedPlot.rainfallDaily[1] + selectedPlot.rainfallDaily[2]}mm precipitation event has soaked the top 15cm soil layer.`,
-              keyFactors: ['Soil moisture retention', 'Seed decay prevention', 'Optimal germination thermal unit'],
-              inputAdvice: `Seed rate: 100-110 kg/ha treated with Trichoderma viride @ 4g/kg seed. Basal DAP @ 50 kg/ha.`,
-              potentialRisks: 'Drilling directly before Day 2-3 downpour risks seed wash-out and fungal collar rot.',
-            },
-            {
-              id: 'REC-02',
-              title: 'Immediate Ridge & Furrow Bedding',
-              summary: 'Prepare broad bed and furrows (BBF) today to channel impending runoff and conserve moisture.',
-              keyFactors: ['Drainage excess management', 'Root aeration'],
-              inputAdvice: 'BBF 150cm spacing with 30cm furrow depth.',
-              potentialRisks: 'Labor intensive if rain begins earlier than predicted.',
-            },
-          ],
-          reasoningSteps: [
-            'Evaluated 7-day rainfall curve: Heavy rain on Day 2-3 creates waterlogging risk for fresh seeds.',
-            'Assessed current soil pH and moisture balance against crop physiological germination requirements.',
-            'Formulated candidate delayed-sowing strategy to utilize stored moisture.',
-          ],
-        };
+      if (!response.ok || !response.body) {
+        throw new Error(`Streaming failed with status: ${response.status}`);
       }
 
-      setAgentState((prev) => ({
-        ...prev,
-        currentStep: 2,
-        advisoryStatus: 'completed',
-        simulationStatus: 'running',
-        advisoryData: advisoryJson,
-      }));
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let accumulatedSynthesis = '';
 
-      // 2. Call Simulation Check Agent (Biophysical APSIM/DSSAT stand-in)
-      const simRes = await fetch('/api/agent/simulation-check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: query,
-          plotTelemetry: selectedPlot,
-          candidateRecommendations: advisoryJson.candidateRecommendations,
-        }),
-      });
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
 
-      let simJson: SimulationAgentResponse;
-      if (simRes.ok) {
-        const result = await simRes.json();
-        simJson = result.data;
-      } else {
-        simJson = {
-          agent: 'Biophysical Simulation Check Agent (Simulated Biophysical Engine)',
-          engineSimulated: 'APSIM-SoilWat v7.10 / DSSAT CROPGRO Biophysical Validator',
-          overallVerdict: 'MODIFIED_WITH_WARNINGS',
-          plausibilityScore: 88,
-          biophysicalChecks: [
-            {
-              module: 'Water Balance & Sowing Risk',
-              verdict: 'PASS',
-              simulatedMetric: 'Soil Infiltration & Seed Aeration Index',
-              observation: `Delaying sowing to Day 4 prevents the 30mm rainfall spike on Days 2-3 from causing hypoxic seed rot in ${selectedPlot.soilType}.`,
-            },
-            {
-              module: 'Nitrogen Leaching Dynamics',
-              verdict: 'WARNING',
-              simulatedMetric: 'Nitrate Leaching Potential',
-              observation: 'Basal nitrogen application prior to rain event would cause ~24% nitrate leaching in sandy loam. Must split N dose.',
-            },
-            {
-              module: 'Thermal Degree Accumulation',
-              verdict: 'PASS',
-              simulatedMetric: 'Growing Degree Days (GDD)',
-              observation: `Daily thermal range (${selectedPlot.tempRange.min}°-${selectedPlot.tempRange.max}°C) satisfies minimum 18°C germination threshold.`,
-            },
-          ],
-          simulationFlags: [
-            'Flagged: Do NOT broadcast soluble Urea before Day 3 rain to avoid nitrogen leaching.',
-            'Certified: Sowing on Day 4 provides 92% emergence probability vs 58% on Day 1.',
-          ],
-          requiredModifications: 'Split basal nitrogen into 40% at sowing (Day 4) and 60% top-dress at 25-30 DAS.',
-        };
+        buffer += decoder.decode(value, { stream: true });
+        const blocks = buffer.split('\n\n');
+        buffer = blocks.pop() || '';
+
+        for (const block of blocks) {
+          if (!block.trim()) continue;
+          const eventMatch = block.match(/^event:\s*(.+)$/m);
+          const dataMatch = block.match(/^data:\s*(.+)$/m);
+          if (!eventMatch || !dataMatch) continue;
+
+          const eventName = eventMatch[1].trim();
+          let dataObj: any = null;
+          try {
+            dataObj = JSON.parse(dataMatch[1].trim());
+          } catch {
+            continue;
+          }
+
+          if (eventName === 'agent_start') {
+            if (dataObj.agent === 'advisory') {
+              setAgentState((prev) => ({
+                ...prev,
+                currentStep: 1,
+                advisoryStatus: 'running',
+              }));
+            } else if (dataObj.agent === 'simulation') {
+              setAgentState((prev) => ({
+                ...prev,
+                currentStep: 2,
+                simulationStatus: 'running',
+              }));
+            } else if (dataObj.agent === 'synthesis') {
+              setAgentState((prev) => ({
+                ...prev,
+                currentStep: 3,
+                synthesisStatus: 'running',
+              }));
+            }
+          } else if (eventName === 'agent_completed') {
+            if (dataObj.agent === 'advisory') {
+              setAgentState((prev) => ({
+                ...prev,
+                currentStep: 2,
+                advisoryStatus: 'completed',
+                simulationStatus: 'running',
+                advisoryData: dataObj.data,
+              }));
+            } else if (dataObj.agent === 'simulation') {
+              setAgentState((prev) => ({
+                ...prev,
+                currentStep: 3,
+                simulationStatus: 'completed',
+                synthesisStatus: 'running',
+                simulationData: dataObj.data,
+              }));
+            } else if (dataObj.agent === 'synthesis') {
+              setAgentState((prev) => ({
+                ...prev,
+                currentStep: 0,
+                synthesisStatus: 'completed',
+                synthesisData: dataObj.data,
+              }));
+            }
+          } else if (eventName === 'synthesis_chunk') {
+            accumulatedSynthesis += dataObj.chunk || '';
+            setAgentState((prev) => ({
+              ...prev,
+              currentStep: 3,
+              synthesisStatus: 'running',
+              synthesisData: {
+                agent: 'Farmer Synthesis Agent',
+                finalAnswerMarkdown: accumulatedSynthesis,
+              },
+            }));
+          } else if (eventName === 'done') {
+            setAgentState((prev) => ({
+              ...prev,
+              currentStep: 0,
+            }));
+          } else if (eventName === 'error') {
+            throw new Error(dataObj.message || 'Streaming pipeline execution error');
+          }
+        }
       }
-
-      setAgentState((prev) => ({
-        ...prev,
-        currentStep: 3,
-        simulationStatus: 'completed',
-        synthesisStatus: 'running',
-        simulationData: simJson,
-      }));
-
-      // 3. Call Final Farmer Synthesis Agent
-      const synthRes = await fetch('/api/agent/synthesis', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: query,
-          plotTelemetry: selectedPlot,
-          advisoryResult: advisoryJson,
-          simulationResult: simJson,
-        }),
-      });
-
-      let synthJson: SynthesisAgentResponse;
-      if (synthRes.ok) {
-        const result = await synthRes.json();
-        synthJson = result.data;
-      } else {
-        synthJson = {
-          agent: 'Farmer Synthesis Agent',
-          finalAnswerMarkdown: `### 🌾 Recommended Action Plan for ${selectedPlot.crop} in ${selectedPlot.region}
-
-**Direct Verdict**: **Wait until Day 4 to sow.** Do not sow today or tomorrow because the forecast rainfall on Days 2-3 (${selectedPlot.rainfallDaily[1] + selectedPlot.rainfallDaily[2]} mm) will flood freshly placed seeds.
-
----
-
-#### 📋 Step-by-Step Schedule
-
-1. **Days 1–2 (Pre-Rain Preparation)**:
-   - Prepare Broad Bed and Furrows (BBF) or clear drainage channels to prevent water pooling.
-   - Treat your seed with *Trichoderma viride* (4g per kg of seed) to protect against fungal collar rot.
-
-2. **Days 2–3 (Rainfall Window)**:
-   - Allow the soil to absorb the ${selectedPlot.rainfallForecast7d}mm natural rainfall. Keep seeds in dry storage.
-
-3. **Day 4–5 (Optimal Sowing Window)**:
-   - Sow seeds at 4–5 cm depth once the surface mud firms. The residual soil moisture will guarantee rapid, uniform emergence (>90%).
-
----
-
-#### 🧪 Fertilizer & Soil Safeguards (Simulation Guardrails)
-- **Do not apply Nitrogen before the rain**: The simulation check flagged a 24% nitrogen leaching loss if applied before Day 3.
-- **Dose**: Apply Phosphorus (DAP) at sowing on Day 4. Save your top-dress Nitrogen for 25–30 days after emergence.
-
----
-
-💡 *Local Support*: If heavy cloud cover persists past Day 5, contact your local Extension Center (KVK / EMATER) for seed treatment verification.`,
-        };
-      }
-
-      setAgentState((prev) => ({
-        ...prev,
-        currentStep: 0,
-        synthesisStatus: 'completed',
-        synthesisData: synthJson,
-      }));
     } catch (err: any) {
-      console.error('Multi-agent pipeline error:', err);
-      setAgentState((prev) => ({
-        ...prev,
-        currentStep: 0,
-        advisoryStatus: prev.advisoryStatus === 'running' ? 'error' : prev.advisoryStatus,
-        simulationStatus: prev.simulationStatus === 'running' ? 'error' : prev.simulationStatus,
-        synthesisStatus: prev.synthesisStatus === 'running' ? 'error' : prev.synthesisStatus,
-        error: err.message || 'Error occurred during multi-agent reasoning.',
-      }));
+      console.warn('SSE Streaming fallback to sequential mode:', err);
+      // Fallback: execute sequential requests if stream connection was interrupted
+      try {
+        const advisoryRes = await fetch('/api/agent/advisory', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: query,
+            plotTelemetry: selectedPlot,
+          }),
+        });
+        const advisoryJson = (await advisoryRes.json()).data;
+        setAgentState((prev) => ({
+          ...prev,
+          currentStep: 2,
+          advisoryStatus: 'completed',
+          simulationStatus: 'running',
+          advisoryData: advisoryJson,
+        }));
+
+        const simRes = await fetch('/api/agent/simulation-check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: query,
+            plotTelemetry: selectedPlot,
+            candidateRecommendations: advisoryJson.candidateRecommendations,
+          }),
+        });
+        const simJson = (await simRes.json()).data;
+        setAgentState((prev) => ({
+          ...prev,
+          currentStep: 3,
+          simulationStatus: 'completed',
+          synthesisStatus: 'running',
+          simulationData: simJson,
+        }));
+
+        const synthRes = await fetch('/api/agent/synthesis', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: query,
+            plotTelemetry: selectedPlot,
+            advisoryResult: advisoryJson,
+            simulationResult: simJson,
+          }),
+        });
+        const synthJson = (await synthRes.json()).data;
+        setAgentState((prev) => ({
+          ...prev,
+          currentStep: 0,
+          synthesisStatus: 'completed',
+          synthesisData: synthJson,
+        }));
+      } catch (fallbackErr: any) {
+        setAgentState((prev) => ({
+          ...prev,
+          currentStep: 0,
+          advisoryStatus: prev.advisoryStatus === 'running' ? 'error' : prev.advisoryStatus,
+          simulationStatus: prev.simulationStatus === 'running' ? 'error' : prev.simulationStatus,
+          synthesisStatus: prev.synthesisStatus === 'running' ? 'error' : prev.synthesisStatus,
+          error: fallbackErr.message || 'Error occurred during multi-agent reasoning.',
+        }));
+      }
     }
   };
 
@@ -338,15 +336,16 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
             <h2 className="text-base sm:text-lg font-bold text-white">
               Multi-Agent Advisory Architecture
             </h2>
-            <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-700/60">
-              Sequential Pipeline
+            <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-700/60 flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-emerald-400" />
+              <span>Streaming Multi-Agent SSE</span>
             </span>
           </div>
           <p className="text-xs sm:text-sm text-stone-300 mt-1 max-w-3xl">
-            Unlike a single black-box LLM, BRICS AgriNet splits reasoning into distinct specialist agents:
+            Unlike a single black-box LLM, BRICS AgriNet streams reasoning in real-time across specialist agents:
             <strong className="text-emerald-300"> 1. Agronomic Advisor</strong> (generates candidates) ➔
             <strong className="text-amber-300"> 2. Biophysical Simulation Checker</strong> (validates against soil/weather physics) ➔
-            <strong className="text-teal-300"> 3. Farmer Synthesis Agent</strong> (plain-language action plan).
+            <strong className="text-teal-300"> 3. Farmer Synthesis Agent</strong> (real-time token streaming).
           </p>
         </div>
 
@@ -364,10 +363,10 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <label htmlFor="farmer-query-input" className="text-sm font-semibold text-white flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-emerald-400" />
-              Farmer Query (Plain Language)
+              <Sparkles className="w-4 h-4 text-emerald-400" aria-hidden="true" />
+              <span>Farmer Query (Plain Language)</span>
             </label>
-            <span className="text-xs text-stone-400">
+            <span id="query-context-hint" className="text-xs text-stone-400">
               Context bound to: <strong className="text-emerald-400">{selectedPlot.crop} ({selectedPlot.country})</strong>
             </span>
           </div>
@@ -377,7 +376,7 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
             {activeRegionConfig && (
               <div className="flex flex-wrap items-center gap-1.5 bg-stone-950/60 p-2 rounded-xl border border-stone-800/80 text-xs">
                 <span className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1 mr-1">
-                  <span>{activeRegionConfig.flag}</span>
+                  <span aria-hidden="true">{activeRegionConfig.flag}</span>
                   <span>{activeRegionConfig.name} Suggested Prompts:</span>
                 </span>
                 {activeRegionConfig.quickQuestions.map((qq, idx) => (
@@ -385,7 +384,8 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
                     key={idx}
                     type="button"
                     onClick={() => setQuery(qq)}
-                    className="text-[11px] px-2.5 py-1 rounded-md bg-stone-800 hover:bg-emerald-950/80 text-stone-300 hover:text-emerald-200 border border-stone-700 hover:border-emerald-700/60 transition-all text-left flex items-center gap-1"
+                    aria-label={`Use suggested prompt: ${qq}`}
+                    className="text-[11px] px-2.5 py-1 rounded-md bg-stone-800 hover:bg-emerald-950/80 text-stone-300 hover:text-emerald-200 border border-stone-700 hover:border-emerald-700/60 transition-all text-left flex items-center gap-1 focus:outline-none focus:ring-1 focus:ring-emerald-400"
                   >
                     <span>{qq}</span>
                   </button>
@@ -393,7 +393,7 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
               </div>
             )}
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Sample Farmer Questions">
               <span className="text-xs text-stone-400 self-center mr-1">All Sample Questions:</span>
               {SAMPLE_FARMER_QUERIES.map((sample) => (
                 <button
@@ -401,21 +401,22 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
                   type="button"
                   id={`sample-query-${sample.id}`}
                   onClick={() => handleSelectSampleQuery(sample)}
-                  className={`text-xs px-2.5 py-1.5 rounded-lg border transition-all text-left flex items-center gap-1.5 ${
+                  aria-label={`Load sample query: ${sample.label}`}
+                  className={`text-xs px-2.5 py-1.5 rounded-lg border transition-all text-left flex items-center gap-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-400 ${
                     selectedPlot.id === sample.plotId
                       ? 'bg-emerald-950/60 border-emerald-600/60 text-emerald-200 font-medium'
                       : 'bg-stone-800 hover:bg-stone-700 text-stone-200 border-stone-700 hover:border-stone-600'
                   }`}
                 >
                   <span>{sample.label}</span>
-                  <ChevronRight className="w-3 h-3 text-stone-400" />
+                  <ChevronRight className="w-3 h-3 text-stone-400" aria-hidden="true" />
                 </button>
               ))}
             </div>
           </div>
 
           {/* Text Area Form */}
-          <form onSubmit={runSequentialMultiAgentPipeline} className="space-y-3">
+          <form onSubmit={runSequentialMultiAgentPipeline} aria-label="Farmer Advisory Form" className="space-y-3">
             <div className="relative">
               <textarea
                 id="farmer-query-input"
@@ -423,6 +424,8 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Ask about sowing dates, fertilizer dosage, irrigation, pest risks, or weather precautions..."
                 rows={3}
+                aria-required="true"
+                aria-describedby="query-context-hint"
                 className="w-full bg-stone-950 text-stone-100 text-sm rounded-xl p-3.5 border border-stone-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder-stone-500 resize-none font-sans"
               />
               <div className="absolute bottom-3 right-3 flex items-center gap-2">
@@ -430,7 +433,9 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
                   type="submit"
                   id="submit-advisory-pipeline"
                   disabled={isPipelineRunning || !query.trim()}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-all ${
+                  aria-busy={isPipelineRunning}
+                  aria-label={isPipelineRunning ? "Running multi-agent pipeline" : "Run Multi-Agent Advisory Pipeline"}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-emerald-400 ${
                     isPipelineRunning || !query.trim()
                       ? 'bg-stone-800 text-stone-500 cursor-not-allowed border border-stone-700'
                       : 'bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400/40 hover:scale-[1.02] active:scale-[0.98]'
@@ -438,12 +443,12 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
                 >
                   {isPipelineRunning ? (
                     <>
-                      <RefreshCw className="w-4 h-4 animate-spin text-emerald-300" />
+                      <RefreshCw className="w-4 h-4 animate-spin text-emerald-300" aria-hidden="true" />
                       <span>Running Multi-Agent Pipeline...</span>
                     </>
                   ) : (
                     <>
-                      <Send className="w-4 h-4" />
+                      <Send className="w-4 h-4" aria-hidden="true" />
                       <span>Run Multi-Agent Advisory</span>
                     </>
                   )}
@@ -456,19 +461,22 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
 
       {/* Multi-Agent Sequential Execution Cards */}
       {(agentState.currentStep > 0 || agentState.advisoryData || agentState.synthesisData) && (
-        <div className="space-y-4">
+        <section aria-label="Multi-Agent Reasoning Pipeline Execution" aria-live="polite" className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <Cpu className="w-5 h-5 text-emerald-400" />
-              Multi-Agent Reasoning Pipeline
+              <Cpu className="w-5 h-5 text-emerald-400" aria-hidden="true" />
+              <span>Multi-Agent Reasoning Pipeline</span>
             </h3>
             <span className="text-xs text-stone-400 flex items-center gap-1">
-              <Clock className="w-3.5 h-3.5 text-stone-400" /> Sequential Agent Execution
+              <Clock className="w-3.5 h-3.5 text-stone-400" aria-hidden="true" />
+              <span>Sequential Agent Execution</span>
             </span>
           </div>
 
           {/* STEP 1: Agronomic Advisory Agent */}
           <div
+            role="region"
+            aria-label="Step 1: Agronomic Advisory Agent"
             className={`rounded-2xl border transition-all duration-300 p-4 sm:p-5 ${
               agentState.advisoryStatus === 'running'
                 ? 'bg-emerald-950/40 border-emerald-500 shadow-emerald-900/20 shadow-lg ring-1 ring-emerald-500/50 animate-pulse'
@@ -480,6 +488,7 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
             <div className="flex items-start sm:items-center justify-between gap-3 pb-3 border-b border-stone-800">
               <div className="flex items-center gap-3">
                 <div
+                  aria-hidden="true"
                   className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs ${
                     agentState.advisoryStatus === 'completed'
                       ? 'bg-emerald-600 text-white'
@@ -509,15 +518,15 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
                 </div>
               </div>
 
-              <div>
+              <div role="status" aria-live="polite">
                 {agentState.advisoryStatus === 'running' && (
                   <span className="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Analyzing telemetry...
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> Analyzing telemetry...
                   </span>
                 )}
                 {agentState.advisoryStatus === 'completed' && (
                   <span className="text-xs font-semibold text-emerald-400 flex items-center gap-1">
-                    <CheckCircle2 className="w-4 h-4" /> Formulated Candidates
+                    <CheckCircle2 className="w-4 h-4" aria-hidden="true" /> Formulated Candidates
                   </span>
                 )}
               </div>
@@ -533,10 +542,11 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
                   <p className="text-stone-300">{agentState.advisoryData.telemetryAssessment}</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3" role="list" aria-label="Candidate Agronomic Recommendations">
                   {agentState.advisoryData.candidateRecommendations.map((rec, idx) => (
                     <div
                       key={rec.id || idx}
+                      role="listitem"
                       className="bg-stone-800/80 rounded-xl p-3.5 border border-stone-700/70 space-y-2"
                     >
                       <div className="flex items-center justify-between">
@@ -552,7 +562,7 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
                       </div>
                       {rec.potentialRisks && (
                         <div className="text-[11px] text-amber-300/90 flex items-start gap-1">
-                          <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-400" />
+                          <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-400" aria-hidden="true" />
                           <span>Risk: {rec.potentialRisks}</span>
                         </div>
                       )}
@@ -578,6 +588,8 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
 
           {/* STEP 2: Biophysical Simulation Check Agent */}
           <div
+            role="region"
+            aria-label="Step 2: Biophysical Simulation Check Agent"
             className={`rounded-2xl border transition-all duration-300 p-4 sm:p-5 ${
               agentState.simulationStatus === 'running'
                 ? 'bg-amber-950/30 border-amber-500 shadow-amber-900/20 shadow-lg ring-1 ring-amber-500/50 animate-pulse'
@@ -589,6 +601,7 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
             <div className="flex items-start sm:items-center justify-between gap-3 pb-3 border-b border-stone-800">
               <div className="flex items-center gap-3">
                 <div
+                  aria-hidden="true"
                   className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs ${
                     agentState.simulationStatus === 'completed'
                       ? 'bg-amber-600 text-white'
@@ -618,10 +631,10 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
                 </div>
               </div>
 
-              <div>
+              <div role="status" aria-live="polite">
                 {agentState.simulationStatus === 'running' && (
                   <span className="text-xs font-semibold text-amber-400 flex items-center gap-1.5">
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Stress-testing physics...
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> Stress-testing physics...
                   </span>
                 )}
                 {agentState.simulationStatus === 'completed' && (
@@ -632,8 +645,8 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
                         : 'bg-amber-950 text-amber-300 border-amber-700'
                     }`}
                   >
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                    Verdict: {agentState.simulationData?.overallVerdict}
+                    <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />
+                    <span>Verdict: {agentState.simulationData?.overallVerdict}</span>
                   </span>
                 )}
               </div>
@@ -652,10 +665,11 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
                 </div>
 
                 {/* Biophysical Checks List */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3" role="list" aria-label="Biophysical Equation Check Modules">
                   {agentState.simulationData.biophysicalChecks.map((check, idx) => (
                     <div
                       key={idx}
+                      role="listitem"
                       className="bg-stone-800/80 rounded-xl p-3 border border-stone-700/70 space-y-1.5"
                     >
                       <div className="flex items-center justify-between">
@@ -682,8 +696,8 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
                 {agentState.simulationData.requiredModifications && (
                   <div className="bg-amber-950/40 rounded-xl p-3 border border-amber-800/60 text-xs">
                     <span className="font-bold text-amber-300 flex items-center gap-1.5 mb-1">
-                      <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-                      Simulation-Enforced Guardrails
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-400" aria-hidden="true" />
+                      <span>Simulation-Enforced Guardrails</span>
                     </span>
                     <p className="text-amber-100/90">{agentState.simulationData.requiredModifications}</p>
                   </div>
@@ -694,6 +708,8 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
 
           {/* STEP 3: Final Synthesis Output */}
           <div
+            role="region"
+            aria-label="Step 3: Final Synthesized Farmer Advisory"
             className={`rounded-2xl border transition-all duration-300 p-4 sm:p-6 ${
               agentState.synthesisStatus === 'running'
                 ? 'bg-teal-950/30 border-teal-500 shadow-teal-900/20 shadow-lg ring-1 ring-teal-500/50 animate-pulse'
@@ -705,6 +721,7 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-stone-800">
               <div className="flex items-center gap-3">
                 <div
+                  aria-hidden="true"
                   className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs ${
                     agentState.synthesisStatus === 'completed'
                       ? 'bg-teal-600 text-white'
@@ -740,8 +757,10 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
                   <button
                     type="button"
                     id="read-aloud-btn"
+                    aria-pressed={isSpeaking}
+                    aria-label={isSpeaking ? "Stop spoken reading of advisory" : "Read advisory aloud using text-to-speech"}
                     onClick={() => handleReadAloud(agentState.synthesisData!.finalAnswerMarkdown)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border ${
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border focus:outline-none focus:ring-2 focus:ring-teal-400 ${
                       isSpeaking
                         ? 'bg-amber-600 text-white border-amber-400 animate-pulse'
                         : 'bg-stone-800 hover:bg-stone-700 text-stone-200 border-stone-700'
@@ -749,12 +768,12 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
                   >
                     {isSpeaking ? (
                       <>
-                        <VolumeX className="w-4 h-4 text-white" />
+                        <VolumeX className="w-4 h-4 text-white" aria-hidden="true" />
                         <span>Stop Speech</span>
                       </>
                     ) : (
                       <>
-                        <Volume2 className="w-4 h-4 text-teal-400" />
+                        <Volume2 className="w-4 h-4 text-teal-400" aria-hidden="true" />
                         <span>Read Aloud</span>
                       </>
                     )}
@@ -767,25 +786,42 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
             </div>
 
             {/* Synthesis Markdown Display */}
-            {agentState.synthesisStatus === 'running' && (
-              <div className="py-8 text-center space-y-3">
-                <RefreshCw className="w-8 h-8 text-teal-400 animate-spin mx-auto" />
+            {agentState.synthesisStatus === 'running' && !agentState.synthesisData && (
+              <div role="status" aria-live="polite" className="py-8 text-center space-y-3">
+                <RefreshCw className="w-8 h-8 text-teal-400 animate-spin mx-auto" aria-hidden="true" />
                 <p className="text-sm text-stone-300 font-medium">
-                  Synthesizing agronomic recommendations with simulation check safeguards...
+                  Synthesizing agronomic recommendations with biophysical simulation safeguards...
                 </p>
+                <div className="text-[11px] text-teal-400 font-mono flex items-center justify-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 animate-pulse" aria-hidden="true" />
+                  <span>Connecting to real-time Gemini token stream...</span>
+                </div>
               </div>
             )}
 
             {agentState.synthesisData && (
               <div className="mt-5 space-y-4">
+                {/* Streaming in progress banner */}
+                {agentState.synthesisStatus === 'running' && (
+                  <div role="status" aria-live="polite" className="bg-teal-950/40 border border-teal-700/50 rounded-xl p-2.5 flex items-center justify-between text-xs text-teal-300">
+                    <span className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-teal-400 animate-ping" aria-hidden="true" />
+                      <span className="font-semibold">Streaming synthesis tokens live...</span>
+                    </span>
+                    <span className="font-mono text-[10px] text-teal-400 bg-teal-900/60 px-2 py-0.5 rounded">
+                      SSE Channel Active
+                    </span>
+                  </div>
+                )}
+
                 {/* Audio Wave Indicator if speaking */}
                 {isSpeaking && (
-                  <div className="bg-teal-950/50 border border-teal-800/60 rounded-xl p-2.5 flex items-center justify-between gap-3 text-xs text-teal-200">
+                  <div role="status" aria-live="polite" className="bg-teal-950/50 border border-teal-800/60 rounded-xl p-2.5 flex items-center justify-between gap-3 text-xs text-teal-200">
                     <div className="flex items-center gap-2">
-                      <Volume2 className="w-4 h-4 text-teal-400 animate-bounce" />
+                      <Volume2 className="w-4 h-4 text-teal-400 animate-bounce" aria-hidden="true" />
                       <span>Reading advisory to farmer...</span>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1" aria-hidden="true">
                       <span className="w-1.5 h-4 bg-teal-400 rounded-full animate-pulse" />
                       <span className="w-1.5 h-6 bg-teal-300 rounded-full animate-pulse delay-75" />
                       <span className="w-1.5 h-3 bg-teal-500 rounded-full animate-pulse delay-150" />
@@ -795,7 +831,12 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
                 )}
 
                 {/* Final Plain-language content */}
-                <div className="prose prose-invert prose-emerald max-w-none text-stone-200 text-sm leading-relaxed space-y-3 bg-stone-950/60 p-5 rounded-xl border border-stone-800/80">
+                <div
+                  role="region"
+                  aria-label="Synthesized Farmer Action Plan"
+                  aria-live="polite"
+                  className="prose prose-invert prose-emerald max-w-none text-stone-200 text-sm leading-relaxed space-y-3 bg-stone-950/60 p-5 rounded-xl border border-stone-800/80 relative"
+                >
                   <div
                     className="whitespace-pre-wrap font-sans"
                     dangerouslySetInnerHTML={{
@@ -806,11 +847,14 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot }: AdvisoryTabProps)
                         .replace(/\*(.*?)\*/g, '<em class="text-stone-300">$1</em>'),
                     }}
                   />
+                  {agentState.synthesisStatus === 'running' && (
+                    <span className="inline-block w-2 h-4 bg-teal-400 animate-pulse align-middle ml-1" aria-hidden="true" />
+                  )}
                 </div>
               </div>
             )}
           </div>
-        </div>
+        </section>
       )}
     </div>
   );

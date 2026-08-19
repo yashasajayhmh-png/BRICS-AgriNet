@@ -200,3 +200,46 @@ export interface EscalatedTicket {
   agronomistNotes?: string;
   prescribedTreatment?: string;
 }
+
+export interface FederatedRoundResponse {
+  roundNumber: number;
+  globalAccuracy: number;
+  updatedSilos: NationSilo[];
+  privacyBudgetConsumedEpsilon: number;
+  coordinatorNotes: string;
+  nonIIDDivergenceIndex: number;
+  sovereignAuditCertificate: string;
+}
+
+export interface OutbreakForecastResponse {
+  transboundaryRiskLevel: 'MODERATE' | 'HIGH' | 'CRITICAL';
+  clusterDetected: boolean;
+  clusterCount: number;
+  primaryVector: string;
+  fourteenDaySpreadPrediction: string;
+  atmosphericTransportIndex: number;
+  multilateralDirectives: string[];
+  bufferZoneActionPlan: string;
+  affectedBorderBilateralCorridors: string[];
+}
+
+export interface CopilotAssistResponse {
+  ticketId: string;
+  differentialDiagnosis: string;
+  ragCorroboration: string;
+  recommendedPrescription: string;
+  safetyContraindications: string[];
+  fieldVerificationChecklist: string[];
+  estimatedYieldRecoveryPct: number;
+}
+
+export interface CreditAssessmentResponse {
+  plotId: string;
+  creditScore: number;
+  ratingGrade: 'A+' | 'A' | 'B+' | 'B' | 'C';
+  defaultProbabilityPct: number;
+  maxMicroLoanUSD: number;
+  carbonCreditsEarnedUSD: number;
+  justification: string;
+  dMRVCertificateHash: string;
+}
