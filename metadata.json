@@ -1,0 +1,6 @@
+{
+  "name": "BRICS AgriNet",
+  "description": "Multi-agent AI farming advisory platform for smallholder farmers across BRICS nations with simulation checks, crop photo diagnosis, federated learning commons, and transboundary outbreak alerts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
