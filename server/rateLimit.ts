@@ -24,6 +24,7 @@ export const generalApiLimiter = rateLimit({
   limit: 300,
   standardHeaders: "draft-7",
   legacyHeaders: false,
+  validate: { trustProxy: false },
   handler: createRateLimitHandler("Too many requests to BRICS AgriNet API. Please slow down and try again later."),
 });
 
@@ -36,6 +37,7 @@ export const authLimiter = rateLimit({
   limit: 40,
   standardHeaders: "draft-7",
   legacyHeaders: false,
+  validate: { trustProxy: false },
   handler: createRateLimitHandler("Too many authentication requests. Please try again after 15 minutes."),
 });
 
@@ -49,6 +51,7 @@ export const geminiAiLimiter = rateLimit({
   limit: 25, // 25 LLM inference calls / min
   standardHeaders: "draft-7",
   legacyHeaders: false,
+  validate: { trustProxy: false },
   handler: createRateLimitHandler(
     "Gemini AI inference rate limit exceeded (max 25 requests/min). Please wait a moment before sending additional queries."
   ),
@@ -64,6 +67,7 @@ export const geminiVisionLimiter = rateLimit({
   limit: 12, // 12 high-resolution image vision analyses / min
   standardHeaders: "draft-7",
   legacyHeaders: false,
+  validate: { trustProxy: false },
   handler: createRateLimitHandler(
     "Multimodal crop photo diagnosis rate limit reached (max 12 image scans/min). Please wait 60 seconds before uploading more leaf samples."
   ),
@@ -79,6 +83,7 @@ export const federatedRoundLimiter = rateLimit({
   limit: 15,
   standardHeaders: "draft-7",
   legacyHeaders: false,
+  validate: { trustProxy: false },
   handler: createRateLimitHandler(
     "Federated aggregation round limit reached. Please wait before executing subsequent global consensus rounds."
   ),

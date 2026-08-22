@@ -19,16 +19,14 @@ describe("Rate Limiting Middleware Configuration", () => {
   });
 
   it("should execute rate limit middleware on express mock without errors on initial calls", async () => {
-    const app = express();
-    app.use("/test-gemini", geminiAiLimiter, (_req, res) => {
-      res.json({ ok: true });
-    });
-
     const mockReq = {
       ip: "127.0.0.1",
       headers: {},
       method: "POST",
       url: "/test-gemini",
+      app: {
+        get: () => false,
+      },
     } as any;
 
     const mockRes = {
@@ -38,12 +36,13 @@ describe("Rate Limiting Middleware Configuration", () => {
       json: (data: any) => data,
     } as any;
 
-    let nextCalled = false;
-    const next = () => {
-      nextCalled = true;
-    };
+    const nextPromise = new Promise<boolean>((resolve) => {
+      geminiAiLimiter(mockReq, mockRes, () => {
+        resolve(true);
+      });
+    });
 
-    geminiAiLimiter(mockReq, mockRes, next);
+    const nextCalled = await nextPromise;
     expect(nextCalled).toBe(true);
   });
 });
