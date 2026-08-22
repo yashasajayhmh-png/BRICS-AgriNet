@@ -69,6 +69,9 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  // Enable trust proxy for cloud container / reverse proxy environments (Google Cloud Run / nginx)
+  app.set("trust proxy", 1);
+
   // Initialize SQLite database schema
   await getDatabase();
 
@@ -1230,7 +1233,10 @@ Return valid JSON:
   // Serve static files in production or Vite middleware in development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: process.env.DISABLE_HMR !== "true" ? undefined : false,
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);

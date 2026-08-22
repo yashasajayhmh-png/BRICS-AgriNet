@@ -41,7 +41,7 @@ service cloud.firestore {
         data.id is string && data.id.size() <= 128 &&
         data.name is string && data.name.size() > 0 && data.name.size() <= 120 &&
         data.email is string && data.email.size() > 0 && data.email.size() <= 160 &&
-        data.role in ['farmer', 'extension_officer', 'admin', 'researcher'] &&
+        data.role in ['farmer', 'extension_officer', 'fpo_manager', 'research_admin', 'auditor', 'admin', 'researcher'] &&
         data.country is string && data.country.size() <= 80 &&
         data.createdAt is string && data.createdAt.size() <= 80;
     }
@@ -57,38 +57,60 @@ service cloud.firestore {
     }
 
     function isValidEscalatedTicket(data) {
-      return data.keys().hasAll(['id', 'farmerId', 'farmerName', 'crop', 'issue', 'urgency', 'status', 'createdAt']) &&
+      return data.keys().hasAll(['id', 'farmerName', 'crop', 'status']) &&
         data.id is string && data.id.size() <= 128 &&
-        data.farmerId is string && data.farmerId.size() <= 128 &&
         data.farmerName is string && data.farmerName.size() <= 120 &&
         data.crop is string && data.crop.size() <= 80 &&
-        data.issue is string && data.issue.size() <= 500 &&
-        data.urgency in ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] &&
-        data.status in ['PENDING_REVIEW', 'IN_PROGRESS', 'VERIFIED_BY_AGENT', 'RESOLVED'] &&
-        data.createdAt is string && data.createdAt.size() <= 80;
+        data.status in ['PENDING_REVIEW', 'IN_PROGRESS', 'VERIFIED_BY_AGENT', 'RESOLVED', 'REJECTED'] &&
+        (data.get('farmerId', null) == null || (data.farmerId is string && data.farmerId.size() <= 128)) &&
+        (data.get('farmerPhone', null) == null || (data.farmerPhone is string && data.farmerPhone.size() <= 60)) &&
+        (data.get('country', null) == null || (data.country is string && data.country.size() <= 80)) &&
+        (data.get('region', null) == null || (data.region is string && data.region.size() <= 160)) &&
+        (data.get('urgency', null) == null || data.urgency in ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']) &&
+        (data.get('issue', null) == null || (data.issue is string && data.issue.size() <= 1000)) &&
+        (data.get('triageReason', null) == null || (data.triageReason is string && data.triageReason.size() <= 1000)) &&
+        (data.get('createdAt', null) == null || (data.createdAt is string && data.createdAt.size() <= 80)) &&
+        (data.get('timestamp', null) == null || (data.timestamp is string && data.timestamp.size() <= 80));
     }
 
     function isValidPlotTelemetry(data) {
-      return data.keys().hasAll(['id', 'name', 'country', 'crop', 'soilMoisture', 'ph', 'ndviIndex']) &&
+      return data.keys().hasAll(['id', 'name', 'country', 'crop', 'soilMoisture']) &&
         data.id is string && data.id.size() <= 128 &&
         data.name is string && data.name.size() <= 120 &&
         data.country is string && data.country.size() <= 80 &&
         data.crop is string && data.crop.size() <= 80 &&
         data.soilMoisture is number &&
-        data.ph is number &&
-        data.ndviIndex is number;
+        (data.get('region', null) == null || (data.region is string && data.region.size() <= 160)) &&
+        (data.get('flag', null) == null || (data.flag is string && data.flag.size() <= 30)) &&
+        (data.get('soilType', null) == null || (data.soilType is string && data.soilType.size() <= 120)) &&
+        (data.get('soilPH', null) == null || data.soilPH is number) &&
+        (data.get('ph', null) == null || data.ph is number) &&
+        (data.get('nitrogen', null) == null || data.nitrogen is number) &&
+        (data.get('phosphorus', null) == null || data.phosphorus is number) &&
+        (data.get('potassium', null) == null || data.potassium is number) &&
+        (data.get('organicCarbonPercent', null) == null || data.organicCarbonPercent is number) &&
+        (data.get('rainfallForecast7d', null) == null || data.rainfallForecast7d is number) &&
+        (data.get('humidityPercent', null) == null || data.humidityPercent is number) &&
+        (data.get('ndviCurrent', null) == null || data.ndviCurrent is number) &&
+        (data.get('ndviIndex', null) == null || data.ndviIndex is number) &&
+        (data.get('historicalYieldAvg', null) == null || data.historicalYieldAvg is number);
     }
 
     function isValidOutbreakReport(data) {
-      return data.keys().hasAll(['id', 'country', 'region', 'crop', 'pestDisease', 'severity', 'distanceToBorderKm', 'reportedAt']) &&
+      return data.keys().hasAll(['id', 'country', 'crop', 'pestDisease', 'severity']) &&
         data.id is string && data.id.size() <= 128 &&
         data.country is string && data.country.size() <= 80 &&
-        data.region is string && data.region.size() <= 160 &&
         data.crop is string && data.crop.size() <= 80 &&
         data.pestDisease is string && data.pestDisease.size() <= 160 &&
-        data.severity in ['Low', 'Moderate', 'Severe', 'Critical'] &&
-        data.distanceToBorderKm is number &&
-        data.reportedAt is string && data.reportedAt.size() <= 80;
+        data.severity in ['Low', 'Moderate', 'Severe', 'Critical', 'MODERATE', 'HIGH'] &&
+        (data.get('region', null) == null || (data.region is string && data.region.size() <= 160)) &&
+        (data.get('flag', null) == null || (data.flag is string && data.flag.size() <= 30)) &&
+        (data.get('sporeDensityIndex', null) == null || data.sporeDensityIndex is number) &&
+        (data.get('distanceToBorderKm', null) == null || data.distanceToBorderKm is number) &&
+        (data.get('neighboringCountry', null) == null || (data.neighboringCountry is string && data.neighboringCountry.size() <= 120)) &&
+        (data.get('verifiedBy', null) == null || (data.verifiedBy is string && data.verifiedBy.size() <= 120)) &&
+        (data.get('reportedAt', null) == null || (data.reportedAt is string && data.reportedAt.size() <= 80)) &&
+        (data.get('date', null) == null || (data.date is string && data.date.size() <= 80));
     }
 
     function isValidFederatedRound(data) {
@@ -106,7 +128,7 @@ service cloud.firestore {
       allow list: if isSignedIn();
       allow create: if isValidId(userId) && isOwner(userId) && isValidUserProfile(incoming());
       allow update: if isValidId(userId) && (isOwner(userId) || isAdmin()) && isValidUserProfile(incoming()) &&
-        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'country', 'farmLocation', 'cropFocus', 'language', 'role']);
+        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'country', 'farmLocation', 'cropFocus', 'language', 'role', 'farmSizeHa', 'region']);
       allow delete: if isValidId(userId) && isAdmin();
     }
 
@@ -119,25 +141,21 @@ service cloud.firestore {
         isValidCropDiagnosis(incoming());
       allow update: if isValidId(diagnosisId) && (existing().userId == request.auth.uid || isAdmin()) &&
         isValidCropDiagnosis(incoming()) &&
-        incoming().diff(existing()).affectedKeys().hasOnly(['advisory', 'pesticideRiskScore', 'bricsHarmonizedMRL']);
+        incoming().diff(existing()).affectedKeys().hasOnly(['advisory', 'pesticideRiskScore', 'bricsHarmonizedMRL', 'severityLevel']);
       allow delete: if isValidId(diagnosisId) && (existing().userId == request.auth.uid || isAdmin());
     }
 
     // 3. Escalated Tickets collection
     match /tickets/{ticketId} {
-      allow get: if isValidId(ticketId) && isSignedIn();
-      allow list: if isSignedIn();
-      allow create: if isValidId(ticketId) && isSignedIn() &&
-        incoming().farmerId == request.auth.uid &&
-        isValidEscalatedTicket(incoming());
+      allow get: if isValidId(ticketId);
+      allow list: if true;
+      allow create: if isValidId(ticketId) && isSignedIn() && isValidEscalatedTicket(incoming());
       allow update: if isValidId(ticketId) && isSignedIn() &&
         isValidEscalatedTicket(incoming()) && (
           // Action 1: Extension officer / Admin triage & prescription
-          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'agronomistNotes', 'prescribedTreatment', 'assignedTo', 'updatedAt']) ||
-          // Action 2: Farmer edits ticket issue
-          (existing().farmerId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['issue', 'urgency', 'updatedAt']))
+          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'agronomistNotes', 'prescribedTreatment', 'assignedTo', 'updatedAt', 'issue', 'urgency'])
         );
-      allow delete: if isValidId(ticketId) && (existing().farmerId == request.auth.uid || isAdmin());
+      allow delete: if isValidId(ticketId) && (existing().get('farmerId', '') == request.auth.uid || isAdmin());
     }
 
     // 4. Plots Telemetry collection
@@ -148,7 +166,9 @@ service cloud.firestore {
       allow update: if isValidId(plotId) && isSignedIn() && isValidPlotTelemetry(incoming()) &&
         incoming().diff(existing()).affectedKeys().hasOnly([
           'soilMoisture', 'soilTemperature', 'nitrogenPPM', 'phosphorusPPM', 'potassiumPPM',
-          'ph', 'ndviIndex', 'weatherSummary', 'alertsCount', 'updatedAt'
+          'soilPH', 'ph', 'nitrogen', 'phosphorus', 'potassium', 'organicCarbonPercent',
+          'rainfallForecast7d', 'humidityPercent', 'ndviCurrent', 'ndviIndex', 'historicalYieldAvg',
+          'weatherSummary', 'alertsCount', 'updatedAt'
         ]);
       allow delete: if isValidId(plotId) && isAdmin();
     }
@@ -159,7 +179,7 @@ service cloud.firestore {
       allow list: if true;
       allow create: if isValidId(outbreakId) && isSignedIn() && isValidOutbreakReport(incoming());
       allow update: if isValidId(outbreakId) && isSignedIn() && isValidOutbreakReport(incoming()) &&
-        incoming().diff(existing()).affectedKeys().hasOnly(['severity', 'pestDisease', 'distanceToBorderKm', 'verifiedBy']);
+        incoming().diff(existing()).affectedKeys().hasOnly(['severity', 'pestDisease', 'distanceToBorderKm', 'verifiedBy', 'sporeDensityIndex']);
       allow delete: if isValidId(outbreakId) && isAdmin();
     }
 
@@ -179,3 +199,4 @@ service cloud.firestore {
     }
   }
 }
+

@@ -27,8 +27,10 @@ export async function getPlotsFromFirestore(): Promise<PlotTelemetry[]> {
   try {
     const snapshot = await getDocs(collection(db, path));
     if (snapshot.empty) {
-      // Seed default plots if Firestore is empty
-      await seedDefaultPlots();
+      // Seed default plots if Firestore is empty AND user is authenticated
+      if (auth.currentUser) {
+        await seedDefaultPlots();
+      }
       return BRICS_PLOTS;
     }
     const list: PlotTelemetry[] = [];
@@ -44,12 +46,39 @@ export async function getPlotsFromFirestore(): Promise<PlotTelemetry[]> {
 
 export async function seedDefaultPlots() {
   const path = 'plots';
+  // Security rule prerequisite: Writes to /plots require an authenticated user
+  if (!auth.currentUser) {
+    return;
+  }
+
   try {
     for (const plot of BRICS_PLOTS) {
-      await setDoc(doc(db, path, plot.id), plot, { merge: true });
+      const sanitizedPlot = {
+        id: plot.id,
+        name: plot.name,
+        country: plot.country,
+        flag: plot.flag || '',
+        region: plot.region || '',
+        crop: plot.crop,
+        soilType: plot.soilType || '',
+        soilPH: plot.soilPH || 7.0,
+        ph: plot.soilPH || 7.0,
+        nitrogen: plot.nitrogen || 0,
+        phosphorus: plot.phosphorus || 0,
+        potassium: plot.potassium || 0,
+        organicCarbonPercent: plot.organicCarbonPercent || 0,
+        soilMoisture: plot.soilMoisture || 0,
+        rainfallForecast7d: plot.rainfallForecast7d || 0,
+        humidityPercent: plot.humidityPercent || 0,
+        ndviCurrent: plot.ndviCurrent || 0,
+        ndviIndex: plot.ndviCurrent || 0,
+        historicalYieldAvg: plot.historicalYieldAvg || 0,
+        updatedAt: new Date().toISOString(),
+      };
+      await setDoc(doc(db, path, plot.id), sanitizedPlot, { merge: true });
     }
   } catch (error) {
-    console.warn('Could not seed default plots to Firestore:', error);
+    console.warn('Firestore plot seeding notice:', error);
   }
 }
 
@@ -90,12 +119,24 @@ export async function getDiagnosesFromFirestore(): Promise<DiagnosisResult[]> {
 
 export async function saveDiagnosisToFirestore(diag: DiagnosisResult): Promise<void> {
   const path = 'diagnoses';
+  if (!auth.currentUser) {
+    console.info('Diagnosis saved locally in session (user not signed in to Firebase).');
+    return;
+  }
+
   try {
     const docId = `diag_${Date.now()}`;
+    const confidenceNormalized =
+      diag.confidenceScore > 1 ? diag.confidenceScore / 100 : diag.confidenceScore;
+
     await setDoc(doc(db, path, docId), {
       ...diag,
       id: docId,
-      userId: auth.currentUser?.uid || 'anonymous_farmer',
+      userId: auth.currentUser.uid,
+      crop: diag.identifiedCrop || 'Crop Sample',
+      disease: diag.conditionName || 'Diagnosed Condition',
+      confidence: confidenceNormalized,
+      severityLevel: diag.severityLevel || 'Moderate',
       createdAt: new Date().toISOString(),
     });
   } catch (error) {
@@ -109,7 +150,9 @@ export async function getTicketsFromFirestore(): Promise<EscalatedTicket[]> {
   try {
     const snapshot = await getDocs(collection(db, path));
     if (snapshot.empty) {
-      await seedDefaultTickets();
+      if (auth.currentUser) {
+        await seedDefaultTickets();
+      }
       return ESCALATED_TICKETS;
     }
     const list: EscalatedTicket[] = [];
@@ -125,12 +168,35 @@ export async function getTicketsFromFirestore(): Promise<EscalatedTicket[]> {
 
 export async function seedDefaultTickets() {
   const path = 'tickets';
+  if (!auth.currentUser) {
+    return;
+  }
+
   try {
     for (const ticket of ESCALATED_TICKETS) {
-      await setDoc(doc(db, path, ticket.id), ticket, { merge: true });
+      const sanitizedTicket = {
+        id: ticket.id,
+        farmerName: ticket.farmerName,
+        farmerPhone: ticket.farmerPhone || '',
+        farmerId: auth.currentUser.uid,
+        region: ticket.region || '',
+        country: ticket.country || '',
+        flag: ticket.flag || '',
+        crop: ticket.crop,
+        photoUrl: ticket.photoUrl || '',
+        aiSuggestedCondition: ticket.aiSuggestedCondition || '',
+        confidenceScore: ticket.confidenceScore || 0,
+        triageReason: ticket.triageReason || '',
+        status: ticket.status || 'PENDING_REVIEW',
+        agronomistNotes: ticket.agronomistNotes || '',
+        prescribedTreatment: ticket.prescribedTreatment || '',
+        timestamp: ticket.timestamp || new Date().toISOString(),
+        createdAt: ticket.timestamp || new Date().toISOString(),
+      };
+      await setDoc(doc(db, path, ticket.id), sanitizedTicket, { merge: true });
     }
   } catch (error) {
-    console.warn('Could not seed default tickets to Firestore:', error);
+    console.warn('Firestore ticket seeding notice:', error);
   }
 }
 
@@ -165,7 +231,9 @@ export async function getOutbreaksFromFirestore(): Promise<OutbreakReport[]> {
   try {
     const snapshot = await getDocs(collection(db, path));
     if (snapshot.empty) {
-      await seedDefaultOutbreaks();
+      if (auth.currentUser) {
+        await seedDefaultOutbreaks();
+      }
       return OUTBREAK_REPORTS;
     }
     const list: OutbreakReport[] = [];
@@ -181,12 +249,31 @@ export async function getOutbreaksFromFirestore(): Promise<OutbreakReport[]> {
 
 export async function seedDefaultOutbreaks() {
   const path = 'outbreaks';
+  if (!auth.currentUser) {
+    return;
+  }
+
   try {
     for (const report of OUTBREAK_REPORTS) {
-      await setDoc(doc(db, path, report.id), report, { merge: true });
+      const sanitizedOutbreak = {
+        id: report.id,
+        country: report.country,
+        flag: report.flag || '',
+        region: report.region || '',
+        crop: report.crop,
+        pestDisease: report.pestDisease,
+        severity: report.severity || 'Moderate',
+        sporeDensityIndex: report.sporeDensityIndex || 0,
+        distanceToBorderKm: report.distanceToBorderKm || 0,
+        neighboringCountry: report.neighboringCountry || '',
+        verifiedBy: report.verifiedBy || '',
+        date: report.date || new Date().toISOString(),
+        reportedAt: report.date || new Date().toISOString(),
+      };
+      await setDoc(doc(db, path, report.id), sanitizedOutbreak, { merge: true });
     }
   } catch (error) {
-    console.warn('Could not seed default outbreaks to Firestore:', error);
+    console.warn('Firestore outbreak seeding notice:', error);
   }
 }
 
@@ -205,6 +292,10 @@ export async function createOutbreakReportInFirestore(report: OutbreakReport): P
 // 5. USER PROFILES SERVICE
 export async function saveUserProfileToFirestore(profile: FarmerProfile): Promise<void> {
   const path = `users/${profile.id}`;
+  if (!auth.currentUser) {
+    return;
+  }
+
   try {
     await setDoc(
       doc(db, 'users', profile.id),
@@ -238,3 +329,4 @@ export async function getUserProfileFromFirestore(userId: string): Promise<Farme
     handleFirestoreError(error, OperationType.GET, path);
   }
 }
+

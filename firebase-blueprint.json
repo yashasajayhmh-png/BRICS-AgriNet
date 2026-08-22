@@ -8,7 +8,7 @@
         "id": { "type": "string", "maxLength": 128 },
         "name": { "type": "string", "maxLength": 120 },
         "email": { "type": "string", "maxLength": 160 },
-        "role": { "type": "string", "enum": ["farmer", "extension_officer", "admin", "researcher"] },
+        "role": { "type": "string", "enum": ["farmer", "extension_officer", "fpo_manager", "research_admin", "auditor", "admin", "researcher"] },
         "country": { "type": "string", "maxLength": 80 },
         "farmLocation": { "type": "string", "maxLength": 160 },
         "cropFocus": { "type": "string", "maxLength": 80 },
@@ -27,6 +27,7 @@
         "crop": { "type": "string", "maxLength": 80 },
         "disease": { "type": "string", "maxLength": 120 },
         "confidence": { "type": "number" },
+        "severityLevel": { "type": "string", "maxLength": 40 },
         "pesticideRiskScore": { "type": "string", "maxLength": 60 },
         "bricsHarmonizedMRL": { "type": "string", "maxLength": 120 },
         "advisory": { "type": "string", "maxLength": 2000 },
@@ -41,20 +42,27 @@
       "type": "object",
       "properties": {
         "id": { "type": "string", "maxLength": 128 },
-        "farmerId": { "type": "string", "maxLength": 128 },
         "farmerName": { "type": "string", "maxLength": 120 },
+        "farmerPhone": { "type": "string", "maxLength": 60 },
+        "farmerId": { "type": "string", "maxLength": 128 },
         "country": { "type": "string", "maxLength": 80 },
+        "flag": { "type": "string", "maxLength": 30 },
+        "region": { "type": "string", "maxLength": 160 },
         "crop": { "type": "string", "maxLength": 80 },
-        "issue": { "type": "string", "maxLength": 500 },
+        "photoUrl": { "type": "string", "maxLength": 300 },
+        "aiSuggestedCondition": { "type": "string", "maxLength": 200 },
+        "confidenceScore": { "type": "number" },
+        "triageReason": { "type": "string", "maxLength": 1000 },
+        "status": { "type": "string", "enum": ["PENDING_REVIEW", "IN_PROGRESS", "VERIFIED_BY_AGENT", "RESOLVED", "REJECTED"] },
         "urgency": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"] },
-        "status": { "type": "string", "enum": ["PENDING_REVIEW", "IN_PROGRESS", "VERIFIED_BY_AGENT", "RESOLVED"] },
         "assignedTo": { "type": "string", "maxLength": 120 },
         "agronomistNotes": { "type": "string", "maxLength": 2000 },
         "prescribedTreatment": { "type": "string", "maxLength": 2000 },
+        "timestamp": { "type": "string", "maxLength": 80 },
         "createdAt": { "type": "string" },
         "updatedAt": { "type": "string" }
       },
-      "required": ["id", "farmerId", "farmerName", "crop", "issue", "urgency", "status", "createdAt"]
+      "required": ["id", "farmerName", "crop", "status"]
     },
     "PlotTelemetry": {
       "title": "PlotTelemetry",
@@ -64,19 +72,22 @@
         "id": { "type": "string", "maxLength": 128 },
         "name": { "type": "string", "maxLength": 120 },
         "country": { "type": "string", "maxLength": 80 },
+        "flag": { "type": "string", "maxLength": 30 },
+        "region": { "type": "string", "maxLength": 160 },
         "crop": { "type": "string", "maxLength": 80 },
+        "soilType": { "type": "string", "maxLength": 120 },
+        "soilPH": { "type": "number" },
+        "nitrogen": { "type": "number" },
+        "phosphorus": { "type": "number" },
+        "potassium": { "type": "number" },
+        "organicCarbonPercent": { "type": "number" },
         "soilMoisture": { "type": "number" },
-        "soilTemperature": { "type": "number" },
-        "nitrogenPPM": { "type": "number" },
-        "phosphorusPPM": { "type": "number" },
-        "potassiumPPM": { "type": "number" },
-        "ph": { "type": "number" },
-        "ndviIndex": { "type": "number" },
-        "weatherSummary": { "type": "string", "maxLength": 200 },
-        "alertsCount": { "type": "number" },
-        "updatedAt": { "type": "string" }
+        "rainfallForecast7d": { "type": "number" },
+        "humidityPercent": { "type": "number" },
+        "ndviCurrent": { "type": "number" },
+        "historicalYieldAvg": { "type": "number" }
       },
-      "required": ["id", "name", "country", "crop", "soilMoisture", "ph", "ndviIndex"]
+      "required": ["id", "name", "country", "crop", "soilMoisture"]
     },
     "OutbreakReport": {
       "title": "OutbreakReport",
@@ -85,16 +96,19 @@
       "properties": {
         "id": { "type": "string", "maxLength": 128 },
         "country": { "type": "string", "maxLength": 80 },
+        "flag": { "type": "string", "maxLength": 30 },
         "region": { "type": "string", "maxLength": 160 },
         "crop": { "type": "string", "maxLength": 80 },
         "pestDisease": { "type": "string", "maxLength": 160 },
-        "severity": { "type": "string", "enum": ["Low", "Moderate", "Severe", "Critical"] },
+        "severity": { "type": "string", "enum": ["Low", "Moderate", "Severe", "Critical", "MODERATE", "HIGH"] },
+        "sporeDensityIndex": { "type": "number" },
         "distanceToBorderKm": { "type": "number" },
         "neighboringCountry": { "type": "string", "maxLength": 120 },
         "verifiedBy": { "type": "string", "maxLength": 120 },
+        "date": { "type": "string", "maxLength": 80 },
         "reportedAt": { "type": "string" }
       },
-      "required": ["id", "country", "region", "crop", "pestDisease", "severity", "distanceToBorderKm", "reportedAt"]
+      "required": ["id", "country", "crop", "pestDisease", "severity"]
     },
     "FederatedRound": {
       "title": "FederatedRound",
