@@ -148,26 +148,36 @@ npm run dev
 
 Visit [http://localhost:3000](http://localhost:3000) in your browser.
 
-### 4. Running Tests & Linting
+### 4. Running Tests & Quality Gates
 
-Validate code integrity and database fallback invariants:
+Validate code integrity, mathematical invariants, and security rules:
 
 ```bash
-# Type check and linting
-npm run lint
+# Type check strictly (noUncheckedIndexedAccess, no-any)
+npm run typecheck
 
-# Run unit tests with Vitest
+# Run unit and property-based test suites with Vitest
 npm run test
+
+# Run full quality gates (typecheck + test suite)
+npm run validate
+
+# Run test coverage analysis
+npm run test:coverage
 ```
 
-### 5. Production Build
+### 5. Production Build & PWA Assets
 
-Build the static client bundle and bundle the server executable:
+Build the static client bundle, PWA service worker precache, and backend server:
 
 ```bash
 npm run build
 npm start
 ```
+
+For complete technical specifications and contributing guidelines, see:
+- [System Architecture & ADRs (ARCHITECTURE.md)](ARCHITECTURE.md)
+- [Contribution & Domain Purity Guidelines (CONTRIBUTING.md)](CONTRIBUTING.md)
 
 ---
 

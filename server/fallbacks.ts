@@ -304,31 +304,138 @@ export function getFallbackCreditAssessment(plotTelemetry: any = {}) {
   };
 }
 
+export type CircuitState = 'CLOSED' | 'OPEN' | 'HALF_OPEN';
+
+export interface CircuitBreakerOptions {
+  failureThreshold?: number; // Consecutive failures before opening
+  resetTimeoutMs?: number; // Time in OPEN state before trying HALF_OPEN
+  halfOpenSuccessThreshold?: number; // Consecutive successes in HALF_OPEN to close
+  now?: () => number; // Injected clock for deterministic testing
+}
+
+export class CircuitBreaker {
+  private state: CircuitState = 'CLOSED';
+  private failureCount = 0;
+  private successCount = 0;
+  private lastStateChangedAt: number;
+  private failureThreshold: number;
+  private resetTimeoutMs: number;
+  private halfOpenSuccessThreshold: number;
+  private now: () => number;
+
+  constructor(options: CircuitBreakerOptions = {}) {
+    this.failureThreshold = options.failureThreshold ?? 3;
+    this.resetTimeoutMs = options.resetTimeoutMs ?? 30000;
+    this.halfOpenSuccessThreshold = options.halfOpenSuccessThreshold ?? 2;
+    this.now = options.now ?? (() => Date.now());
+    this.lastStateChangedAt = this.now();
+  }
+
+  getState(): CircuitState {
+    const currentTime = this.now();
+    if (this.state === 'OPEN' && currentTime - this.lastStateChangedAt >= this.resetTimeoutMs) {
+      this.transitionTo('HALF_OPEN');
+    }
+    return this.state;
+  }
+
+  private transitionTo(newState: CircuitState): void {
+    this.state = newState;
+    this.lastStateChangedAt = this.now();
+    if (newState === 'CLOSED') {
+      this.failureCount = 0;
+      this.successCount = 0;
+    } else if (newState === 'OPEN') {
+      this.successCount = 0;
+    } else if (newState === 'HALF_OPEN') {
+      this.successCount = 0;
+      this.failureCount = 0;
+    }
+  }
+
+  async execute<T>(action: () => Promise<T>, fallback: (error: any) => T): Promise<T> {
+    const currentState = this.getState();
+
+    if (currentState === 'OPEN') {
+      return fallback(new Error('Circuit breaker is OPEN: fast-shedding load to protect upstream systems.'));
+    }
+
+    try {
+      const result = await action();
+      this.recordSuccess();
+      return result;
+    } catch (error) {
+      this.recordFailure();
+      return fallback(error);
+    }
+  }
+
+  recordSuccess(): void {
+    const currentState = this.getState();
+    if (currentState === 'HALF_OPEN') {
+      this.successCount++;
+      if (this.successCount >= this.halfOpenSuccessThreshold) {
+        this.transitionTo('CLOSED');
+      }
+    } else if (currentState === 'CLOSED') {
+      this.failureCount = 0;
+    }
+  }
+
+  recordFailure(): void {
+    const currentState = this.getState();
+    if (currentState === 'HALF_OPEN') {
+      this.transitionTo('OPEN');
+    } else if (currentState === 'CLOSED') {
+      this.failureCount++;
+      if (this.failureCount >= this.failureThreshold) {
+        this.transitionTo('OPEN');
+      }
+    }
+  }
+
+  reset(): void {
+    this.transitionTo('CLOSED');
+  }
+}
+
+export const defaultGeminiCircuitBreaker = new CircuitBreaker();
+
 export async function executeWithRetry<T>(
   action: () => Promise<T>,
   fallback: (error: any) => T,
   retries = 2,
-  delayMs = 100
+  delayMs = 100,
+  breaker: CircuitBreaker = defaultGeminiCircuitBreaker
 ): Promise<T> {
-  try {
-    return await action();
-  } catch (error: any) {
-    const errorMsg = error?.message || String(error);
-    const isTransient =
-      errorMsg.includes("503") ||
-      errorMsg.includes("UNAVAILABLE") ||
-      errorMsg.includes("429") ||
-      errorMsg.includes("high demand") ||
-      errorMsg.includes("RESOURCE_EXHAUSTED") ||
-      errorMsg.includes("fetch failed") ||
-      errorMsg.includes("network");
+  return breaker.execute(async () => {
+    let currentRetries = retries;
+    let currentDelay = delayMs;
 
-    if (isTransient && retries > 0) {
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
-      return executeWithRetry(action, fallback, retries - 1, delayMs * 1.5);
+    while (true) {
+      try {
+        return await action();
+      } catch (error: any) {
+        const errorMsg = error?.message || String(error);
+        const isTransient =
+          errorMsg.includes("503") ||
+          errorMsg.includes("UNAVAILABLE") ||
+          errorMsg.includes("429") ||
+          errorMsg.includes("high demand") ||
+          errorMsg.includes("RESOURCE_EXHAUSTED") ||
+          errorMsg.includes("fetch failed") ||
+          errorMsg.includes("network");
+
+        if (isTransient && currentRetries > 0) {
+          currentRetries--;
+          await new Promise((resolve) => setTimeout(resolve, currentDelay));
+          currentDelay *= 1.5;
+          continue;
+        }
+
+        throw error;
+      }
     }
-
-    return fallback(error);
-  }
+  }, fallback);
 }
 

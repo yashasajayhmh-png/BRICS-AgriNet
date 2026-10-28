@@ -31,11 +31,15 @@ if (typeof window !== 'undefined') {
   });
 }
 
+import { LazyErrorBoundary } from './components/LazyErrorBoundary.tsx';
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <I18nProvider>
-      <App />
-    </I18nProvider>
+    <LazyErrorBoundary fallbackTitle="BRICS AgriNet Application Error">
+      <I18nProvider>
+        <App />
+      </I18nProvider>
+    </LazyErrorBoundary>
   </StrictMode>,
 );
 

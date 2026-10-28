@@ -2,6 +2,7 @@ import React, { KeyboardEvent } from 'react';
 import { NavigationTab, FarmerProfile } from '../types';
 import { useI18n } from '../lib/i18nContext';
 import { LanguageSelector } from './LanguageSelector';
+import { PWAInstallButton } from './PWAInstallButton';
 import {
   Sprout,
   MessageSquare,
@@ -192,6 +193,9 @@ export function Navbar({
 
           {/* Language Switcher, Search Button & Farmer Authentication Profile Control */}
           <div className="flex items-center gap-2 shrink-0">
+            {/* PWA In-App Install Prompt */}
+            <PWAInstallButton />
+
             {/* Dedicated Language Selector */}
             <LanguageSelector />
 

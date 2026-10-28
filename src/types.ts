@@ -406,7 +406,7 @@ export interface DiagnosisResult {
   conditionName: string;
   scientificName?: string;
   confidenceScore: number;
-  severityLevel: 'Low' | 'Moderate' | 'High' | 'Severe' | 'None';
+  severityLevel: 'Low' | 'Moderate' | 'High' | 'Severe' | 'Critical' | 'None';
   visualSymptoms: string[];
   biologicalCause: string;
   immediateRemedies: string[];

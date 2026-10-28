@@ -25,6 +25,9 @@ import { FarmerControlBar } from './components/FarmerControlBar';
 import { authFetch, removeStoredAuthToken, setStoredAuthToken } from './services/api';
 import { auth, onAuthStateChanged } from './lib/firebase';
 import { subscribePlots, getPlotsFromFirestore } from './services/firestoreService';
+import { useNetworkStatus } from './hooks/useNetworkStatus';
+import { useOfflineQueue } from './hooks/useOfflineQueue';
+import { SyncStatusBanner } from './components/SyncStatusBanner';
 import { Sprout, Globe } from 'lucide-react';
 
 export default function App() {
@@ -34,6 +37,10 @@ export default function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [presetQuery, setPresetQuery] = useState<string | null>(null);
+
+  // Network Detection & Offline Queue Engine
+  const { isOnline, latencyMs } = useNetworkStatus();
+  const { pendingCount, deadLetterCount, isSyncing, replayQueue } = useOfflineQueue(isOnline);
 
   // Farmer Authentication State (persisted to localStorage)
   const [currentFarmer, setCurrentFarmer] = useState<FarmerProfile | null>(() => {
@@ -163,6 +170,16 @@ export default function App() {
       >
         Skip to main content
       </a>
+
+      {/* Accessible, Plural-Aware Offline & Sync Status Banner */}
+      <SyncStatusBanner
+        isOnline={isOnline}
+        pendingCount={pendingCount}
+        deadLetterCount={deadLetterCount}
+        isSyncing={isSyncing}
+        onSyncNow={replayQueue}
+        latencyMs={latencyMs}
+      />
 
       {/* Header & Navigation */}
       <Navbar

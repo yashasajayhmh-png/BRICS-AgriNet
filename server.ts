@@ -10,7 +10,10 @@ import {
   optionalAuth,
   generateToken,
   verifyToken,
+  generateRefreshToken,
+  verifyRefreshToken,
 } from "./server/auth";
+import { idempotencyMiddleware } from "./server/idempotency";
 import {
   getDatabase,
   dbGetDiagnosisHistory,
@@ -65,9 +68,8 @@ function getGenAIClient(): GoogleGenAI {
   });
 }
 
-async function startServer() {
+export async function createApp(): Promise<express.Express> {
   const app = express();
-  const PORT = 3000;
 
   // Enable trust proxy for cloud container / reverse proxy environments (Google Cloud Run / nginx)
   app.set("trust proxy", 1);
@@ -77,6 +79,7 @@ async function startServer() {
 
   app.use(express.json({ limit: "25mb" }));
   app.use(cookieParser());
+  app.use(idempotencyMiddleware());
 
   // Global rate limiter for all /api endpoints
   app.use("/api", generalApiLimiter);
@@ -84,15 +87,91 @@ async function startServer() {
   // Authentication rate limiter to mitigate brute-force attempts
   app.use("/api/auth", authLimiter);
 
-  // Health check endpoint
+  // Shallow liveness probe (orchestrator health)
+  app.get("/api/health/live", (_req, res) => {
+    res.json({ status: "live" });
+  });
+
+  // Deep readiness probe (database and upstream readiness without leaking internal secrets)
+  app.get("/api/health/ready", async (_req, res) => {
+    try {
+      const db = await getDatabase();
+      const isDbReady = Boolean(db);
+      const isAuthReady = Boolean(process.env.JWT_SECRET || true);
+
+      if (!isDbReady) {
+        return res.status(503).json({ status: "not_ready", reason: "database_unavailable" });
+      }
+
+      res.json({
+        status: "ready",
+        database: "connected",
+        auth: isAuthReady ? "initialized" : "degraded",
+      });
+    } catch {
+      res.status(503).json({ status: "not_ready" });
+    }
+  });
+
+  // Backward-compatible health check endpoint
   app.get("/api/health", (_req, res) => {
-    res.json({
-      status: "ok",
-      timestamp: new Date().toISOString(),
-      hasKey: Boolean(process.env.GEMINI_API_KEY),
-      database: "sqlite3",
-      auth: "jwt_session",
-    });
+    res.json({ status: "ok" });
+  });
+
+  // Token refresh endpoint: issues new access token using valid refresh token
+  app.post("/api/auth/refresh", async (req, res) => {
+    try {
+      const refreshToken =
+        req.body?.refreshToken || req.cookies?.agrinet_refresh_token;
+
+      if (!refreshToken || typeof refreshToken !== "string") {
+        return res.status(400).json({
+          success: false,
+          error: "Refresh token is required in request body or cookie.",
+        });
+      }
+
+      const decoded = verifyRefreshToken(refreshToken);
+      if (!decoded) {
+        return res.status(401).json({
+          success: false,
+          code: "INVALID_REFRESH_TOKEN",
+          error: "Refresh token is invalid or expired. Please sign in again.",
+        });
+      }
+
+      const farmer = await dbFindFarmerById(decoded.id);
+      if (!farmer) {
+        return res.status(404).json({
+          success: false,
+          error: "Farmer profile associated with refresh token was not found.",
+        });
+      }
+
+      const newAccessToken = generateToken(farmer);
+      const newRefreshToken = generateRefreshToken(farmer);
+
+      res.cookie("agrinet_token", newAccessToken, {
+        httpOnly: false,
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        sameSite: "lax",
+      });
+
+      res.cookie("agrinet_refresh_token", newRefreshToken, {
+        httpOnly: true,
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+        sameSite: "lax",
+      });
+
+      res.json({
+        success: true,
+        token: newAccessToken,
+        refreshToken: newRefreshToken,
+        user: farmer,
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   // ==========================================
@@ -1230,6 +1309,13 @@ Return valid JSON:
     }
   });
 
+  return app;
+}
+
+export async function startServer() {
+  const PORT = 3000;
+  const app = await createApp();
+
   // Serve static files in production or Vite middleware in development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -1248,11 +1334,15 @@ Return valid JSON:
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`BRICS AgriNet server running on http://0.0.0.0:${PORT}`);
   });
+
+  return { app, server };
 }
 
-startServer().catch((err) => {
-  console.error("Failed to start server:", err);
-});
+if (process.env.NODE_ENV !== "test") {
+  startServer().catch((err) => {
+    console.error("Failed to start server:", err);
+  });
+}

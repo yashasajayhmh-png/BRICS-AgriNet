@@ -24,7 +24,9 @@ declare global {
 }
 
 const JWT_SECRET = process.env.JWT_SECRET || 'brics-agrinet-secret-key-production-change-me';
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || `${JWT_SECRET}-refresh-salt-production`;
 const TOKEN_EXPIRY = '7d';
+const REFRESH_TOKEN_EXPIRY = '30d';
 
 /**
  * Generate a cryptographically signed JWT for an authenticated farmer or officer
@@ -46,6 +48,37 @@ export function generateToken(farmer: FarmerProfile | AuthUser): string {
     issuer: 'brics-agrinet-auth-service',
     audience: 'brics-agrinet-app',
   });
+}
+
+/**
+ * Generate a long-lived refresh token
+ */
+export function generateRefreshToken(farmer: FarmerProfile | AuthUser): string {
+  const payload: { id: string; role: string } = {
+    id: farmer.id,
+    role: (farmer.role as any) || 'farmer',
+  };
+
+  return jwt.sign(payload, JWT_REFRESH_SECRET, {
+    expiresIn: REFRESH_TOKEN_EXPIRY,
+    issuer: 'brics-agrinet-auth-service',
+    audience: 'brics-agrinet-refresh',
+  });
+}
+
+/**
+ * Verify a refresh token and return payload
+ */
+export function verifyRefreshToken(token: string): { id: string; role: string } | null {
+  try {
+    const decoded = jwt.verify(token, JWT_REFRESH_SECRET, {
+      issuer: 'brics-agrinet-auth-service',
+      audience: 'brics-agrinet-refresh',
+    }) as { id: string; role: string };
+    return decoded;
+  } catch (err) {
+    return null;
+  }
 }
 
 /**
