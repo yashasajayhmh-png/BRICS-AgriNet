@@ -30,11 +30,14 @@ import {
 } from 'lucide-react';
 import { ESCALATED_TICKETS, BRICS_PLOTS, RAG_GROUNDING_SOURCES } from '../data/mockData';
 import { EscalatedTicket, PlotTelemetry, CopilotAssistResponse, CreditAssessmentResponse } from '../types';
+import { useI18n } from '../lib/i18nContext';
 import { authFetch } from '../services/api';
 import { getTicketsFromFirestore, getPlotsFromFirestore, updateTicketInFirestore } from '../services/firestoreService';
 
 export function ExtensionCopilotTab() {
+  const { t } = useI18n();
   const [tickets, setTickets] = useState<EscalatedTicket[]>(ESCALATED_TICKETS);
+
   const [selectedTicket, setSelectedTicket] = useState<EscalatedTicket>(tickets[0]);
   const [agronomistNoteInput, setAgronomistNoteInput] = useState<string>('');
   const [prescriptionInput, setPrescriptionInput] = useState<string>('');

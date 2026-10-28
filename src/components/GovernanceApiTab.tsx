@@ -17,6 +17,7 @@ import {
   MODEL_MONITORING_METRICS,
   ADVISORY_TEMPLATES,
 } from '../data/governanceData';
+import { useI18n } from '../lib/i18nContext';
 import {
   Code,
   Globe,
@@ -38,7 +39,9 @@ import {
 } from 'lucide-react';
 
 export function GovernanceApiTab() {
+  const { t } = useI18n();
   const [activeSubTab, setActiveSubTab] = useState<
+
     'openapi' | 'standards' | 'models' | 'connectors' | 'monitoring' | 'templates' | 'audit'
   >('openapi');
 

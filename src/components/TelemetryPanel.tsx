@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { PlotTelemetry } from '../types';
 import { BRICS_PLOTS, PRIMARY_TOGGLE_REGIONS } from '../data/mockData';
+import { useI18n } from '../lib/i18nContext';
 import {
   Satellite,
   Droplets,
@@ -29,7 +30,9 @@ interface TelemetryPanelProps {
 }
 
 export function TelemetryPanel({ selectedPlot, onSelectPlot }: TelemetryPanelProps) {
+  const { t } = useI18n();
   const [showMemory, setShowMemory] = useState<boolean>(true);
+
   const [showSliders, setShowSliders] = useState<boolean>(true);
   const days = ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5', 'Day 6', 'Day 7'];
   const maxRain = Math.max(...selectedPlot.rainfallDaily, 15);

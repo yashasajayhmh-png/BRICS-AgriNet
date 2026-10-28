@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NationSilo } from '../types';
 import { INITIAL_NATION_SILOS } from '../data/mockData';
+import { useI18n } from '../lib/i18nContext';
 import { authFetch } from '../services/api';
 import {
   Network,
@@ -29,7 +30,9 @@ import {
 } from 'lucide-react';
 
 export function FederatedTab() {
+  const { t } = useI18n();
   const [silos, setSilos] = useState<NationSilo[]>(INITIAL_NATION_SILOS);
+
   const [currentRound, setCurrentRound] = useState<number>(0);
   const [isSimulating, setIsSimulating] = useState<boolean>(false);
   const [simStep, setSimStep] = useState<number>(0); // 0: Idle, 1: Local Edge Training, 2: DP Gradient Extraction, 3: Weight Delta Transmission, 4: Global FedAvg Update

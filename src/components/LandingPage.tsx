@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { NavigationTab, FarmerProfile, PlotTelemetry } from '../types';
+import { useI18n } from '../lib/i18nContext';
 import {
   Sprout,
   MessageSquare,
@@ -43,6 +44,7 @@ export function LandingPage({
   plots,
   onSelectPlot,
 }: LandingPageProps) {
+  const { t } = useI18n();
   const overviewNavRef = useRef<HTMLDivElement>(null);
   const capabilitiesScrollRef = useRef<HTMLDivElement>(null);
   const plotsScrollRef = useRef<HTMLDivElement>(null);
@@ -58,14 +60,14 @@ export function LandingPage({
   };
 
   const overviewSections = [
-    { id: 'hero-section', label: 'Platform Mission', icon: Sparkles },
-    { id: 'capabilities-section', label: 'Multi-Agent Capabilities', icon: Layers },
-    { id: 'plots-section', label: 'BRICS In-Situ Plots', icon: Globe },
+    { id: 'hero-section', label: t('landing.heroTag', 'Platform Mission'), icon: Sparkles },
+    { id: 'capabilities-section', label: t('landing.featuresTitle', 'Multi-Agent Capabilities'), icon: Layers },
+    { id: 'plots-section', label: t('landing.plotsTitle', 'BRICS In-Situ Plots'), icon: Globe },
     { id: 'sovereignty-section', label: 'Data Sovereignty Spec', icon: Lock },
-    { id: 'advisory', label: 'Launch Advisory Hub', icon: MessageSquare, isAction: true },
-    { id: 'diagnosis', label: 'Crop Photo Vision', icon: Camera, isAction: true },
-    { id: 'federated', label: 'Federated Commons', icon: Network, isAction: true },
-    { id: 'outbreak', label: 'Outbreak Radar', icon: AlertTriangle, isAction: true },
+    { id: 'advisory', label: t('nav.advisory', 'Farmer Advisory'), icon: MessageSquare, isAction: true },
+    { id: 'diagnosis', label: t('nav.diagnosis', 'Crop Diagnosis'), icon: Camera, isAction: true },
+    { id: 'federated', label: t('nav.federated', 'Federated Commons'), icon: Network, isAction: true },
+    { id: 'outbreak', label: t('nav.outbreak', 'Outbreak Radar'), icon: AlertTriangle, isAction: true },
   ];
 
   const scrollToSection = (sectionId: string, isAction?: boolean) => {
@@ -137,10 +139,10 @@ export function LandingPage({
   ];
 
   const stats = [
-    { label: 'Smallholders Targeted', value: '500M+', sub: 'Across BRICS Corridors' },
-    { label: 'Data Sovereignty', value: '100%', sub: 'Zero Raw Data Export' },
-    { label: 'Sequential Multi-Agent', value: '3-Tier', sub: 'Advisory → Sim → Synthesis' },
-    { label: 'Calibrated Triage', value: '<70%', sub: 'Auto Human-in-the-Loop' },
+    { label: t('landing.stat1Label', 'Smallholders Targeted'), value: '500M+', sub: 'Across BRICS Corridors' },
+    { label: t('landing.stat2Label', 'Data Sovereignty'), value: '100%', sub: 'Zero Raw Data Export' },
+    { label: t('landing.stat3Label', 'Multi-Agent Pipeline'), value: '3-Tier', sub: 'Advisory → Sim → Synthesis' },
+    { label: t('landing.stat4Label', 'Calibrated AI Triage'), value: '<70%', sub: 'Auto Human-in-the-Loop' },
   ];
 
   return (
@@ -150,7 +152,7 @@ export function LandingPage({
         <div className="flex items-center justify-between text-xs text-stone-300">
           <div className="flex items-center gap-2 font-bold text-white">
             <Compass className="w-4 h-4 text-emerald-400" />
-            <span>Overview &amp; Platform Sections Navigator</span>
+            <span>{t('landing.heroTag', 'Overview & Platform Sections Navigator')}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-stone-500 hidden sm:inline">
@@ -216,23 +218,18 @@ export function LandingPage({
           {/* Top Badge */}
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-950/80 border border-emerald-700/50 text-emerald-300 text-xs font-semibold">
             <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Sovereign AI Infrastructure for Global South Agriculture</span>
+            <span>{t('landing.heroTag', 'Sovereign AI Infrastructure for Global South Agriculture')}</span>
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
           </div>
 
           {/* Main Headline */}
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-white font-serif leading-[1.15]">
-            Empowering 500 Million Smallholders with{' '}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-200">
-              Sovereign Multi-Agent AI
-            </span>
+            {t('landing.heroTitle', 'Empowering 500 Million Smallholders with Sovereign Multi-Agent AI')}
           </h1>
 
           {/* Subheading */}
           <p className="text-base sm:text-lg text-stone-300 max-w-3xl leading-relaxed">
-            BRICS AgriNet unifies in-situ telemetry, sequential Gemini 3.7 Flash multi-agent agronomy,
-            multimodal foliar pathogen diagnostics, and privacy-preserving federated commons across
-            India, Brazil, South Africa, China, Egypt, and Ethiopia.
+            {t('landing.heroSubtitle', 'BRICS AgriNet unifies in-situ telemetry, sequential Gemini 3.7 Flash multi-agent agronomy, multimodal foliar pathogen diagnostics, and privacy-preserving federated commons across India, Brazil, South Africa, China, Egypt, and Ethiopia.')}
           </p>
 
           {/* CTA Buttons */}
@@ -242,7 +239,7 @@ export function LandingPage({
               onClick={() => onNavigate('advisory')}
               className="px-6 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-semibold text-sm rounded-xl shadow-lg hover:shadow-emerald-900/30 transition-all flex items-center gap-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400"
             >
-              <span>Launch Farmer Advisory</span>
+              <span>{t('landing.ctaAdvisory', 'Launch Farmer Advisory')}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
 
@@ -252,7 +249,7 @@ export function LandingPage({
               className="px-5 py-3.5 bg-stone-800/90 hover:bg-stone-700 border border-stone-700 text-stone-100 font-semibold text-sm rounded-xl transition-all flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-emerald-400"
             >
               <Camera className="w-4 h-4 text-emerald-400" />
-              <span>Diagnose Plant Photo</span>
+              <span>{t('landing.ctaDiagnosis', 'Diagnose Plant Photo')}</span>
             </button>
 
             {!currentFarmer ? (
@@ -262,7 +259,7 @@ export function LandingPage({
                 className="px-5 py-3.5 bg-emerald-950/70 hover:bg-emerald-900 border border-emerald-600/50 text-emerald-200 font-semibold text-sm rounded-xl transition-all flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-emerald-400"
               >
                 <LogIn className="w-4 h-4 text-emerald-400" />
-                <span>Farmer Sign In (1-Click Demo)</span>
+                <span>{t('landing.signInDemo', 'Farmer Sign In (1-Click Demo)')}</span>
               </button>
             ) : (
               <div className="flex items-center gap-2.5 px-4 py-2.5 bg-stone-800/70 border border-stone-700 rounded-xl text-xs text-stone-300">
@@ -292,10 +289,10 @@ export function LandingPage({
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
           <div>
             <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
-              Autonomous Sovereign Agents
+              {t('landing.heroTag', 'Autonomous Sovereign Agents')}
             </span>
             <h2 className="text-2xl sm:text-3xl font-bold text-white font-serif mt-1">
-              Engineered for Smallholder Resilience
+              {t('landing.featuresTitle', 'Engineered for Smallholder Resilience')}
             </h2>
           </div>
           <div className="flex items-center gap-2">
@@ -389,11 +386,11 @@ export function LandingPage({
             <div className="flex items-center gap-2">
               <Globe className="w-4 h-4 text-emerald-400" />
               <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
-                Live In-Situ Telemetry Corridors
+                {t('landing.plotsSubtitle', 'Live In-Situ Telemetry Corridors')}
               </span>
             </div>
             <h2 className="text-xl sm:text-2xl font-bold text-white font-serif mt-1">
-              Active BRICS Member Test Plots ({plots.length} Corridors)
+              {t('landing.plotsTitle', 'Active BRICS Member Test Plots')} ({plots.length} Corridors)
             </h2>
           </div>
           <div className="flex items-center gap-2">
@@ -455,7 +452,7 @@ export function LandingPage({
 
               <div className="mt-4 pt-3 border-t border-stone-800/80 grid grid-cols-3 gap-2 text-center text-[10px]">
                 <div className="bg-stone-900 rounded p-1.5 border border-stone-800">
-                  <div className="text-stone-500">Moisture</div>
+                  <div className="text-stone-500">{t('control.moisture', 'Moisture')}</div>
                   <div className="font-bold text-emerald-400">{plot.soilMoisture}%</div>
                 </div>
                 <div className="bg-stone-900 rounded p-1.5 border border-stone-800">
@@ -473,7 +470,7 @@ export function LandingPage({
       </section>
 
       {/* Sovereign Governance & Security Callout */}
-      <section id="sovereignty-section" className="rounded-3xl bg-gradient-to-r from-emerald-950/70 via-stone-900 to-stone-900 border border-emerald-800/40 p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6">
+      <section id="sovereignty-section" className="rounded-3xl bg-gradient-to-r from-emerald-950/70 via-stone-900 to-stone-950 border border-emerald-800/40 p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6">
         <div className="space-y-2 max-w-2xl">
           <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold uppercase tracking-wider">
             <Lock className="w-4 h-4" />
@@ -502,10 +499,11 @@ export function LandingPage({
             className="w-full sm:w-auto px-5 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
           >
             <LogIn className="w-4 h-4" />
-            <span>Sign In as Smallholder</span>
+            <span>{t('landing.signInDemo', 'Sign In as Smallholder')}</span>
           </button>
         </div>
       </section>
     </div>
   );
 }
+

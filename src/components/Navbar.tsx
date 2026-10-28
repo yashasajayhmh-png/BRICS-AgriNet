@@ -1,5 +1,7 @@
 import React, { KeyboardEvent } from 'react';
 import { NavigationTab, FarmerProfile } from '../types';
+import { useI18n } from '../lib/i18nContext';
+import { LanguageSelector } from './LanguageSelector';
 import {
   Sprout,
   MessageSquare,
@@ -35,6 +37,8 @@ export function Navbar({
   onSignOut,
   onOpenSearch,
 }: NavbarProps) {
+  const { t } = useI18n();
+
   const navItems: {
     id: NavigationTab;
     label: string;
@@ -42,18 +46,18 @@ export function Navbar({
     badgeText?: string;
     badgeType?: 'live' | 'copilot' | 'sim';
   }[] = [
-    { id: 'landing', label: 'Overview', icon: LayoutDashboard },
-    { id: 'advisory', label: 'Farmer Advisory', icon: MessageSquare, badgeText: 'LIVE AI', badgeType: 'live' },
-    { id: 'diagnosis', label: 'Crop Diagnosis', icon: Camera, badgeText: 'LIVE AI', badgeType: 'live' },
-    { id: 'satellite_soil', label: 'Satellite & Soil', icon: Sprout, badgeText: 'SENTINEL-2', badgeType: 'live' },
-    { id: 'farm_profile', label: 'Farm Profile', icon: Globe, badgeText: 'GEOJSON', badgeType: 'copilot' },
-    { id: 'copilot', label: 'Extension Copilot', icon: UserCheck, badgeText: 'COPILOT', badgeType: 'copilot' },
-    { id: 'fpo_marketplace', label: 'FPO & Marketplace', icon: Sparkles, badgeText: 'HUB', badgeType: 'copilot' },
-    { id: 'federated', label: 'Federated Commons', icon: Network, badgeText: 'SIMULATED', badgeType: 'sim' },
-    { id: 'outbreak', label: 'Outbreak Early-Warning', icon: AlertTriangle, badgeText: 'RADAR', badgeType: 'sim' },
-    { id: 'governance_api', label: 'Open API & Standards', icon: Radio, badgeText: 'STANDARDS', badgeType: 'sim' },
-    { id: 'knowledge', label: 'Knowledge Base', icon: Info, badgeText: 'GUIDES', badgeType: 'sim' },
-    { id: 'architecture', label: 'Architecture & Scope', icon: Info },
+    { id: 'landing', label: t('nav.overview', 'Overview'), icon: LayoutDashboard },
+    { id: 'advisory', label: t('nav.advisory', 'Farmer Advisory'), icon: MessageSquare, badgeText: 'LIVE AI', badgeType: 'live' },
+    { id: 'diagnosis', label: t('nav.diagnosis', 'Crop Diagnosis'), icon: Camera, badgeText: 'LIVE AI', badgeType: 'live' },
+    { id: 'satellite_soil', label: t('nav.satellite', 'Satellite & Soil'), icon: Sprout, badgeText: 'SENTINEL-2', badgeType: 'live' },
+    { id: 'farm_profile', label: t('nav.farmProfile', 'Farm Profile'), icon: Globe, badgeText: 'GEOJSON', badgeType: 'copilot' },
+    { id: 'copilot', label: t('nav.copilot', 'Extension Copilot'), icon: UserCheck, badgeText: 'COPILOT', badgeType: 'copilot' },
+    { id: 'fpo_marketplace', label: t('nav.marketplace', 'FPO & Marketplace'), icon: Sparkles, badgeText: 'HUB', badgeType: 'copilot' },
+    { id: 'federated', label: t('nav.federated', 'Federated Commons'), icon: Network, badgeText: 'SIMULATED', badgeType: 'sim' },
+    { id: 'outbreak', label: t('nav.outbreak', 'Outbreak Radar'), icon: AlertTriangle, badgeText: 'RADAR', badgeType: 'sim' },
+    { id: 'governance_api', label: t('nav.governance', 'Open API & Standards'), icon: Radio, badgeText: 'STANDARDS', badgeType: 'sim' },
+    { id: 'knowledge', label: t('nav.knowledge', 'Knowledge Base'), icon: Info, badgeText: 'GUIDES', badgeType: 'sim' },
+    { id: 'architecture', label: t('nav.architecture', 'Architecture & Scope'), icon: Info },
   ];
 
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -88,20 +92,20 @@ export function Navbar({
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1 font-semibold px-2 py-0.5 rounded bg-emerald-800/60 text-emerald-100 text-[11px] border border-emerald-600/40">
             <Radio className="w-3 h-3 text-emerald-400 animate-pulse" aria-hidden="true" />
-            <span>Phase 0 MVP Demo</span>
+            <span>{t('nav.phase0', 'Phase 0 MVP Demo')}</span>
           </span>
           <span className="text-stone-300">
-            Multi-Agent AI Farming Platform for BRICS Smallholder Farmers
+            {t('landing.badge', 'Multi-Agent AI Farming Platform for BRICS Smallholder Farmers')}
           </span>
         </div>
         <div className="flex items-center gap-3 text-[11px] text-stone-300">
           <span className="inline-flex items-center gap-1 text-amber-300">
             <span className="w-2 h-2 rounded-full bg-amber-400 inline-block animate-ping" aria-hidden="true"></span>
-            <span>Sequential Gemini 3.7 Flash Multi-Agent Pipeline (Live)</span>
+            <span>{t('nav.pipelineStatus', 'Sequential Gemini 3.7 Flash Multi-Agent Pipeline (Live)')}</span>
           </span>
           <span className="hidden sm:inline text-stone-500" aria-hidden="true">•</span>
           <span className="hidden sm:inline text-stone-400">
-            Simulated In-situ Soil/Satellite Telemetry
+            {t('nav.telemetryStatus', 'Simulated In-situ Soil/Satellite Telemetry')}
           </span>
         </div>
       </aside>
@@ -122,14 +126,14 @@ export function Navbar({
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-bold text-lg tracking-tight text-white font-serif">
-                  BRICS AgriNet
+                  {t('nav.brand', 'BRICS AgriNet')}
                 </span>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 hidden sm:inline-block">
-                  Global South
+                  {t('nav.globalSouth', 'Global South')}
                 </span>
               </div>
               <p className="text-xs text-stone-400 hidden sm:block">
-                Federated Agronomy &amp; Biophysical AI Sentinel
+                {t('nav.tagline', 'Federated Agronomy & Biophysical AI Sentinel')}
               </p>
             </div>
           </button>
@@ -186,17 +190,20 @@ export function Navbar({
             </div>
           </nav>
 
-          {/* Search Button & Farmer Authentication Profile Control */}
+          {/* Language Switcher, Search Button & Farmer Authentication Profile Control */}
           <div className="flex items-center gap-2 shrink-0">
+            {/* Dedicated Language Selector */}
+            <LanguageSelector />
+
             <button
               type="button"
               onClick={onOpenSearch}
-              title="Search Dashboards & Telemetry (Ctrl+K)"
-              aria-label="Global Search"
+              title={`${t('nav.search', 'Search')} (Ctrl+K)`}
+              aria-label={t('nav.search', 'Global Search')}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-stone-950 hover:bg-stone-800 border border-stone-800 text-stone-300 hover:text-white text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-400"
             >
               <Search className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="hidden xl:inline">Search</span>
+              <span className="hidden xl:inline">{t('nav.search', 'Search')}</span>
               <kbd className="hidden md:inline-block font-mono text-[9px] px-1 py-0.5 rounded bg-stone-800 text-stone-400 border border-stone-700">
                 ⌘K
               </kbd>
@@ -236,7 +243,7 @@ export function Navbar({
                 <button
                   type="button"
                   onClick={onSignOut}
-                  title="Sign Out"
+                  title={t('nav.signOut', 'Sign Out')}
                   aria-label="Sign out of farmer account"
                   className="p-1 text-stone-400 hover:text-stone-200 hover:bg-stone-800 rounded-lg transition-colors focus:outline-none focus:ring-1 focus:ring-emerald-400"
                 >
@@ -250,8 +257,8 @@ export function Navbar({
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-700/80 hover:bg-emerald-600 border border-emerald-500/40 text-white text-xs font-semibold shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-emerald-400"
               >
                 <LogIn className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Farmer Sign In</span>
-                <span className="sm:hidden">Sign In</span>
+                <span className="hidden sm:inline">{t('nav.signIn', 'Farmer Sign In')}</span>
+                <span className="sm:hidden">{t('nav.signIn', 'Sign In')}</span>
               </button>
             )}
           </div>

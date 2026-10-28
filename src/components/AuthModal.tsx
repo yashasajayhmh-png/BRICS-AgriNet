@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FarmerProfile, PlotTelemetry } from '../types';
 import { DEMO_FARMERS } from '../data/mockData';
+import { useI18n } from '../lib/i18nContext';
 import { setStoredAuthToken } from '../services/api';
 import { signInWithGoogle } from '../lib/firebase';
 import { saveUserProfileToFirestore } from '../services/firestoreService';
@@ -36,7 +37,9 @@ export function AuthModal({
   onLoginSuccess,
   availablePlots,
 }: AuthModalProps) {
+  const { t } = useI18n();
   const [authMode, setAuthMode] = useState<'demo' | 'login' | 'register'>('demo');
+
   const [identifier, setIdentifier] = useState('');
   const [farmersList, setFarmersList] = useState<FarmerProfile[]>(DEMO_FARMERS as FarmerProfile[]);
   const [isLoading, setIsLoading] = useState(false);

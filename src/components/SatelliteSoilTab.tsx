@@ -6,6 +6,7 @@ import {
   WEATHER_FORECAST_DATA,
   YIELD_PREDICTIONS_DATA,
 } from '../data/regenerativeData';
+import { useI18n } from '../lib/i18nContext';
 import {
   Satellite,
   Droplets,
@@ -33,7 +34,9 @@ interface SatelliteSoilTabProps {
 }
 
 export function SatelliteSoilTab({ selectedPlot, onSelectPlot }: SatelliteSoilTabProps) {
+  const { t } = useI18n();
   const [activeSubTab, setActiveSubTab] = useState<'satellite' | 'soil' | 'weather' | 'yield'>('satellite');
+
 
   // Interactive What-If simulation slider states for yield biophysical modeling
   const [nitrogenAdjustment, setNitrogenAdjustment] = useState<number>(0); // -40% to +40%

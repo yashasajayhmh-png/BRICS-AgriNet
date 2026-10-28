@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { FarmerProfile, FarmFieldProfile, FarmerConsentSettings, PushAlertNotification } from '../types';
 import { DEMO_FARM_FIELDS, INITIAL_NOTIFICATIONS } from '../data/cooperativeData';
 import { INITIAL_CONSENT_SETTINGS } from '../data/governanceData';
+import { useI18n } from '../lib/i18nContext';
 import {
   MapPin,
   Layers,
@@ -27,7 +28,9 @@ interface FarmProfileTabProps {
 }
 
 export function FarmProfileTab({ currentFarmer, onOpenAuth }: FarmProfileTabProps) {
+  const { t } = useI18n();
   const [fields, setFields] = useState<FarmFieldProfile[]>(DEMO_FARM_FIELDS);
+
   const [selectedField, setSelectedField] = useState<FarmFieldProfile>(DEMO_FARM_FIELDS[0]);
   const [consentSettings, setConsentSettings] = useState<FarmerConsentSettings>(INITIAL_CONSENT_SETTINGS);
   const [notifications, setNotifications] = useState<PushAlertNotification[]>(INITIAL_NOTIFICATIONS);

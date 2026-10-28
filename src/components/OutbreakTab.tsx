@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { OutbreakReport, OutbreakForecastResponse } from '../types';
 import { OUTBREAK_REPORTS } from '../data/mockData';
+import { useI18n } from '../lib/i18nContext';
 import { authFetch } from '../services/api';
 import {
   AlertTriangle,
@@ -26,7 +27,9 @@ import {
 } from 'lucide-react';
 
 export function OutbreakTab() {
+  const { t } = useI18n();
   const [reports, setReports] = useState<OutbreakReport[]>(OUTBREAK_REPORTS);
+
   const [filterCountry, setFilterCountry] = useState<string>('ALL');
   const [clusteringThresholdKm, setClusteringThresholdKm] = useState<number>(10.0); // km to border
   const [activeZone, setActiveZone] = useState<'all' | 'brazil-paraguay' | 'india-pakistan' | 'limpopo'>('all');

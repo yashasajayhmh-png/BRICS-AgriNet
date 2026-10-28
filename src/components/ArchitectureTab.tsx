@@ -26,9 +26,12 @@ import {
   Flag,
 } from 'lucide-react';
 import { PRIOR_ART_BENCHMARK } from '../data/mockData';
+import { useI18n } from '../lib/i18nContext';
 
 export function ArchitectureTab() {
+  const { t } = useI18n();
   const [activeSection, setActiveSection] = useState<'pillars' | 'benchmark' | 'principles' | 'stack' | 'governance' | 'roadmap' | 'scope'>('pillars');
+
 
   const pillars = [
     {

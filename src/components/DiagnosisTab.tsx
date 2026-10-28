@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { DiagnosisResult } from '../types';
 import { SAMPLE_LEAF_IMAGES, GROUNDING_SOURCES, SampleLeaf } from '../data/mockData';
+import { useI18n } from '../lib/i18nContext';
 import { authFetch } from '../services/api';
 import { getDiagnosesFromFirestore, saveDiagnosisToFirestore } from '../services/firestoreService';
 import {
@@ -27,7 +28,9 @@ import {
 } from 'lucide-react';
 
 export function DiagnosisTab() {
+  const { t } = useI18n();
   const [selectedImage, setSelectedImage] = useState<string>(SAMPLE_LEAF_IMAGES[0].previewUrl);
+
   const [selectedSample, setSelectedSample] = useState<SampleLeaf | null>(SAMPLE_LEAF_IMAGES[0]);
   const [cropContext, setCropContext] = useState<string>('Groundnut (Peanut)');
   const [regionContext, setRegionContext] = useState<string>('Karnataka / Semi-Arid India');
@@ -302,17 +305,14 @@ export function DiagnosisTab() {
               <Camera className="w-5 h-5" />
             </span>
             <h2 className="text-base sm:text-lg font-bold text-white">
-              Multimodal Crop Photo Diagnosis &amp; Human Escalation
+              {t('diagnosis.title', 'Multimodal Crop Photo Diagnosis & Human Escalation')}
             </h2>
             <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-700/60">
               ⚡ Live Gemini 3.7 Flash Vision
             </span>
           </div>
           <p className="text-xs sm:text-sm text-stone-300 mt-1 max-w-3xl">
-            Upload or drag &amp; drop field leaf photos for multimodal disease identification. If the AI confidence score drops below{' '}
-            <strong className="text-amber-400">70%</strong>, the system triggers the{' '}
-            <strong className="text-amber-300">Human-in-the-Loop Escalation Pattern</strong>, routing the case directly to
-            local Agricultural Extension Officers (KVK / EMATER) rather than issuing uncertain advice.
+            {t('diagnosis.subtitle', 'Upload or drag & drop field leaf photos for multimodal disease identification. If the AI confidence score drops below 70%, the system triggers the Human-in-the-Loop Escalation Pattern.')}
           </p>
         </div>
 
@@ -331,7 +331,7 @@ export function DiagnosisTab() {
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-sm text-white flex items-center gap-2">
                 <Eye className="w-4 h-4 text-emerald-400" />
-                Target Plant / Leaf Photo
+                {t('diagnosis.dropzonePrompt', 'Target Plant / Leaf Photo')}
               </h3>
               <div className="flex items-center gap-2">
                 <button
@@ -433,8 +433,8 @@ export function DiagnosisTab() {
                     <Upload className="w-7 h-7" aria-hidden="true" />
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-white">Drag &amp; Drop leaf photo here</p>
-                    <p className="text-xs text-stone-400 mt-0.5">or click to browse from device (PNG, JPG, WEBP)</p>
+                    <p className="text-sm font-bold text-white">{t('diagnosis.dropzonePrompt', 'Drag & drop leaf photo here')}</p>
+                    <p className="text-xs text-stone-400 mt-0.5">{t('diagnosis.dropzoneSub', 'or click to browse from device (PNG, JPG, WEBP)')}</p>
                   </div>
                   <div className="inline-flex items-center gap-1 text-[11px] text-stone-500 bg-stone-900 px-2.5 py-1 rounded-lg border border-stone-800">
                     <span>Tip: You can also paste (Ctrl+V / ⌘+V) directly</span>
@@ -446,7 +446,7 @@ export function DiagnosisTab() {
             {/* Crop & Region Context inputs */}
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div>
-                <label htmlFor="crop-type-input" className="text-stone-400 block mb-1 font-medium">Crop Type:</label>
+                <label htmlFor="crop-type-input" className="text-stone-400 block mb-1 font-medium">{t('farmer.crop', 'Crop Type')}:</label>
                 <input
                   id="crop-type-input"
                   type="text"
@@ -457,7 +457,7 @@ export function DiagnosisTab() {
                 />
               </div>
               <div>
-                <label htmlFor="region-type-input" className="text-stone-400 block mb-1 font-medium">Region:</label>
+                <label htmlFor="region-type-input" className="text-stone-400 block mb-1 font-medium">{t('farmer.region', 'Region')}:</label>
                 <input
                   id="region-type-input"
                   type="text"
@@ -498,11 +498,12 @@ export function DiagnosisTab() {
               ) : (
                 <>
                   <Sparkles className="w-4 h-4 text-emerald-300" aria-hidden="true" />
-                  <span>Run Multimodal Diagnosis</span>
+                  <span>{t('diagnosis.runDiagnosis', 'Run Multimodal Diagnosis')}</span>
                 </>
               )}
             </button>
           </div>
+
 
           {/* Sample Leaves Deck */}
           <div className="bg-stone-900 rounded-2xl border border-stone-800 p-4 sm:p-5 shadow-lg space-y-3" role="region" aria-label="Sample Leaf Library">

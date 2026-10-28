@@ -1,6 +1,7 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
+import { I18nProvider } from './lib/i18nContext.tsx';
 import './index.css';
 
 // Gracefully handle benign HMR/WebSocket closure events in sandbox/proxy environments
@@ -32,7 +33,9 @@ if (typeof window !== 'undefined') {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <I18nProvider>
+      <App />
+    </I18nProvider>
   </StrictMode>,
 );
 

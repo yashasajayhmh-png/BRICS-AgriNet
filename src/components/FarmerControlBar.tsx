@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { NavigationTab, PlotTelemetry, FarmerProfile } from '../types';
 import { BRICS_PLOTS } from '../data/mockData';
+import { useI18n } from '../lib/i18nContext';
 import {
   Search,
   Sprout,
@@ -50,6 +51,7 @@ export function FarmerControlBar({
   setSelectedPlot,
   onOpenSearch,
 }: FarmerControlBarProps) {
+  const { t } = useI18n();
   const [isPlotDropdownOpen, setIsPlotDropdownOpen] = useState(false);
   const [isSliderDrawerOpen, setIsSliderDrawerOpen] = useState(false);
   const [plotFilter, setPlotFilter] = useState('');
@@ -105,13 +107,13 @@ export function FarmerControlBar({
   }[] = [
     {
       id: 'landing',
-      label: 'Platform Overview',
+      label: t('nav.overview', 'Overview'),
       shortLabel: 'Overview',
       icon: LayoutDashboard,
     },
     {
       id: 'advisory',
-      label: 'Farmer Advisory',
+      label: t('nav.advisory', 'Farmer Advisory'),
       shortLabel: 'Advisory',
       icon: MessageSquare,
       badge: 'Gemini 3.7',
@@ -119,7 +121,7 @@ export function FarmerControlBar({
     },
     {
       id: 'diagnosis',
-      label: 'Crop Diagnosis',
+      label: t('nav.diagnosis', 'Crop Diagnosis'),
       shortLabel: 'Diagnosis',
       icon: Camera,
       badge: 'Multimodal',
@@ -127,7 +129,7 @@ export function FarmerControlBar({
     },
     {
       id: 'satellite_soil',
-      label: 'Satellite & Soil',
+      label: t('nav.satellite', 'Satellite & Soil'),
       shortLabel: 'Satellite',
       icon: Sprout,
       badge: 'Sentinel-2',
@@ -135,7 +137,7 @@ export function FarmerControlBar({
     },
     {
       id: 'farm_profile',
-      label: 'Farm Mapping & GeoJSON',
+      label: t('nav.farmProfile', 'Farm Profile'),
       shortLabel: 'My Farm',
       icon: MapPin,
       badge: 'GPS',
@@ -143,7 +145,7 @@ export function FarmerControlBar({
     },
     {
       id: 'copilot',
-      label: 'Extension Copilot',
+      label: t('nav.copilot', 'Extension Copilot'),
       shortLabel: 'Copilot',
       icon: UserCheck,
       badge: 'dMRV',
@@ -151,7 +153,7 @@ export function FarmerControlBar({
     },
     {
       id: 'fpo_marketplace',
-      label: 'FPO & Marketplace',
+      label: t('nav.marketplace', 'FPO & Marketplace'),
       shortLabel: 'Market',
       icon: Sparkles,
       badge: 'Hub',
@@ -159,7 +161,7 @@ export function FarmerControlBar({
     },
     {
       id: 'federated',
-      label: 'Federated Commons',
+      label: t('nav.federated', 'Federated Commons'),
       shortLabel: 'Federated',
       icon: Network,
       badge: 'ε=0.5',
@@ -167,7 +169,7 @@ export function FarmerControlBar({
     },
     {
       id: 'outbreak',
-      label: 'Outbreak Radar',
+      label: t('nav.outbreak', 'Outbreak Radar'),
       shortLabel: 'Outbreak',
       icon: AlertTriangle,
       badge: '14-Day',
@@ -175,7 +177,7 @@ export function FarmerControlBar({
     },
     {
       id: 'governance_api',
-      label: 'Open API & Standards',
+      label: t('nav.governance', 'Open API & Standards'),
       shortLabel: 'API & Standards',
       icon: Layers,
       badge: 'REST',
@@ -183,7 +185,7 @@ export function FarmerControlBar({
     },
     {
       id: 'knowledge',
-      label: 'Knowledge & Training',
+      label: t('nav.knowledge', 'Knowledge Base'),
       shortLabel: 'Guides',
       icon: Info,
       badge: 'Agro-Wiki',
@@ -191,7 +193,7 @@ export function FarmerControlBar({
     },
     {
       id: 'architecture',
-      label: 'System Specs',
+      label: t('nav.architecture', 'Architecture & Scope'),
       shortLabel: 'Specs',
       icon: Info,
     },
@@ -257,7 +259,7 @@ export function FarmerControlBar({
                 onClick={onOpenAuth}
                 className="ml-2 text-xs font-semibold px-2.5 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-700 transition-colors shrink-0"
               >
-                Switch
+                {t('control.switchPlot', 'Switch')}
               </button>
             </div>
           ) : (
@@ -274,7 +276,7 @@ export function FarmerControlBar({
                 onClick={onOpenAuth}
                 className="ml-2 text-xs font-semibold px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-all"
               >
-                Sign In
+                {t('nav.signIn', 'Sign In')}
               </button>
             </div>
           )}
@@ -298,7 +300,7 @@ export function FarmerControlBar({
                   </div>
                   <div className="text-[10px] text-stone-400 flex items-center gap-1.5">
                     <Droplets className="w-3 h-3 text-cyan-400 shrink-0" />
-                    <span>Moist: {selectedPlot.soilMoisture}%</span>
+                    <span>{t('control.moisture', 'Moist')}: {selectedPlot.soilMoisture}%</span>
                     <span className="text-stone-600">•</span>
                     <span>pH: {selectedPlot.soilPH}</span>
                   </div>
@@ -368,7 +370,7 @@ export function FarmerControlBar({
               title="Open Environmental Simulation Sliders"
             >
               <Sliders className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="hidden sm:inline">Telemetry Sliders</span>
+              <span className="hidden sm:inline">{t('control.adjustSimulation', 'Telemetry Sliders')}</span>
               <span className="sm:hidden">Sliders</span>
             </button>
 
@@ -378,7 +380,7 @@ export function FarmerControlBar({
                 <div className="flex items-center justify-between pb-2 border-b border-stone-800">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-white">
                     <Sliders className="w-4 h-4 text-emerald-400" />
-                    <span>Plot What-If Sliders ({selectedPlot.flag} {selectedPlot.crop})</span>
+                    <span>{t('control.adjustSimulation', 'Plot What-If Sliders')} ({selectedPlot.flag} {selectedPlot.crop})</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <button
@@ -386,7 +388,7 @@ export function FarmerControlBar({
                       onClick={handleResetPlotDefaults}
                       className="text-[10px] px-2 py-0.5 rounded bg-stone-800 hover:bg-stone-700 text-stone-300 border border-stone-700"
                     >
-                      Reset
+                      {t('control.resetDefaults', 'Reset')}
                     </button>
                     <button
                       type="button"
@@ -404,7 +406,7 @@ export function FarmerControlBar({
                     <div className="flex items-center justify-between">
                       <span className="font-semibold text-stone-300 flex items-center gap-1">
                         <Droplets className="w-3.5 h-3.5 text-blue-400" />
-                        <span>Soil Moisture</span>
+                        <span>{t('control.moisture', 'Soil Moisture')}</span>
                       </span>
                       <span className="font-mono font-bold text-white">{selectedPlot.soilMoisture}%</span>
                     </div>
@@ -432,7 +434,7 @@ export function FarmerControlBar({
                     <div className="flex items-center justify-between">
                       <span className="font-semibold text-stone-300 flex items-center gap-1">
                         <CloudRain className="w-3.5 h-3.5 text-cyan-400" />
-                        <span>7-Day Rain Forecast</span>
+                        <span>{t('control.rainfall', '7-Day Rain Forecast')}</span>
                       </span>
                       <span className="font-mono font-bold text-white">{selectedPlot.rainfallForecast7d} mm</span>
                     </div>
@@ -460,7 +462,7 @@ export function FarmerControlBar({
                     <div className="flex items-center justify-between">
                       <span className="font-semibold text-stone-300 flex items-center gap-1">
                         <Gauge className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Nitrogen (N)</span>
+                        <span>{t('control.nitrogen', 'Nitrogen (N)')}</span>
                       </span>
                       <span className="font-mono font-bold text-white">{selectedPlot.nitrogen} kg/ha</span>
                     </div>
@@ -493,8 +495,8 @@ export function FarmerControlBar({
             title="Open Global Search (Ctrl+K)"
           >
             <Search className="w-3.5 h-3.5 text-emerald-400 group-hover:scale-110 transition-transform" />
-            <span className="hidden sm:inline">Search dashboards, plots, queries...</span>
-            <span className="sm:hidden">Search...</span>
+            <span className="hidden sm:inline">{t('common.search', 'Search dashboards, plots, queries...')}</span>
+            <span className="sm:hidden">{t('nav.search', 'Search...')}</span>
             <kbd className="hidden md:inline-block font-mono text-[10px] px-1.5 py-0.5 rounded bg-stone-800 text-stone-400 border border-stone-700">
               ⌘K
             </kbd>
@@ -507,7 +509,7 @@ export function FarmerControlBar({
         <div className="flex items-center justify-between text-[11px] text-stone-400">
           <span className="font-bold text-stone-300 uppercase tracking-wider flex items-center gap-1.5">
             <LayoutDashboard className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Active Dashboard Modules:</span>
+            <span>{t('landing.featuresTitle', 'Active Dashboard Modules')}:</span>
           </span>
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-stone-500 hidden sm:inline">
@@ -581,3 +583,4 @@ export function FarmerControlBar({
     </div>
   );
 }
+

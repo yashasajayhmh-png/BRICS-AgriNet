@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FpoCooperative, MarketplaceItem, FarmerFeedbackEntry } from '../types';
 import { FPO_COOPERATIVES, MARKETPLACE_ITEMS, INITIAL_FEEDBACK_LOGS } from '../data/cooperativeData';
+import { useI18n } from '../lib/i18nContext';
 import {
   Users,
   ShoppingBag,
@@ -18,7 +19,9 @@ import {
 } from 'lucide-react';
 
 export function FpoMarketplaceTab() {
+  const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<'coop' | 'marketplace' | 'feedback'>('coop');
+
   const [selectedCoop, setSelectedCoop] = useState<FpoCooperative>(FPO_COOPERATIVES[0]);
   const [marketplaceFilter, setMarketplaceFilter] = useState<'all' | 'input_supplier' | 'insurance' | 'buyer'>('all');
   const [feedbackList, setFeedbackList] = useState<FarmerFeedbackEntry[]>(INITIAL_FEEDBACK_LOGS);

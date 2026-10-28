@@ -8,6 +8,7 @@ import {
 } from '../types';
 import { SAMPLE_FARMER_QUERIES, PRIMARY_TOGGLE_REGIONS, BRICS_PLOTS } from '../data/mockData';
 import { TelemetryPanel } from './TelemetryPanel';
+import { useI18n } from '../lib/i18nContext';
 import { authFetch } from '../services/api';
 import {
   Send,
@@ -35,12 +36,14 @@ interface AdvisoryTabProps {
 }
 
 export function AdvisoryTab({ selectedPlot, setSelectedPlot, presetQuery }: AdvisoryTabProps) {
+  const { t } = useI18n();
   const activeRegionConfig = PRIMARY_TOGGLE_REGIONS.find((r) => r.id === selectedPlot.id);
   const [query, setQuery] = useState(
     presetQuery ||
       activeRegionConfig?.defaultQuery ||
       'Should I apply 45 kg/ha Urea top-dressing to my wheat in Ludhiana given 14mm rain forecast on days 3-4 and soil pH 7.4?'
   );
+
 
   useEffect(() => {
     if (presetQuery) {
@@ -343,7 +346,7 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot, presetQuery }: Advi
               <Bot className="w-5 h-5" />
             </span>
             <h2 className="text-base sm:text-lg font-bold text-white">
-              Multi-Agent Advisory Architecture
+              {t('advisory.title', 'Multi-Agent Advisory Architecture')}
             </h2>
             <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-700/60 flex items-center gap-1">
               <Sparkles className="w-3 h-3 text-emerald-400" />
@@ -351,10 +354,7 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot, presetQuery }: Advi
             </span>
           </div>
           <p className="text-xs sm:text-sm text-stone-300 mt-1 max-w-3xl">
-            Unlike a single black-box LLM, BRICS AgriNet streams reasoning in real-time across specialist agents:
-            <strong className="text-emerald-300"> 1. Agronomic Advisor</strong> (generates candidates) ➔
-            <strong className="text-amber-300"> 2. Biophysical Simulation Checker</strong> (validates against soil/weather physics) ➔
-            <strong className="text-teal-300"> 3. Farmer Synthesis Agent</strong> (real-time token streaming).
+            {t('advisory.subtitle', 'Sequential 3-stage agent pipeline: Agronomic Advisory Agent generates recommendations, Biophysical Simulation Agent verifies moisture/soil physics against APSIM/DSSAT models, and Plain-Language Synthesis Agent outputs actionable steps.')}
           </p>
         </div>
 
@@ -373,7 +373,7 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot, presetQuery }: Advi
           <div className="flex items-center justify-between mb-1.5">
             <label htmlFor="farmer-query-input" className="text-sm font-semibold text-white flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-emerald-400" aria-hidden="true" />
-              <span>Farmer Query (Plain Language)</span>
+              <span>{t('advisory.queryPlaceholder', 'Farmer Query (Plain Language)')}</span>
             </label>
             <span id="query-context-hint" className="text-xs text-stone-400">
               Context bound to: <strong className="text-emerald-400">{selectedPlot.crop} ({selectedPlot.country})</strong>
@@ -386,7 +386,7 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot, presetQuery }: Advi
               <div className="flex flex-wrap items-center gap-1.5 bg-stone-950/60 p-2 rounded-xl border border-stone-800/80 text-xs">
                 <span className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1 mr-1">
                   <span aria-hidden="true">{activeRegionConfig.flag}</span>
-                  <span>{activeRegionConfig.name} Suggested Prompts:</span>
+                  <span>{activeRegionConfig.name} {t('advisory.sampleQueries', 'Suggested Prompts')}:</span>
                 </span>
                 {activeRegionConfig.quickQuestions.map((qq, idx) => (
                   <button
@@ -403,7 +403,7 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot, presetQuery }: Advi
             )}
 
             <div className="flex flex-wrap gap-2" role="group" aria-label="Sample Farmer Questions">
-              <span className="text-xs text-stone-400 self-center mr-1">All Sample Questions:</span>
+              <span className="text-xs text-stone-400 self-center mr-1">{t('advisory.sampleQueries', 'Sample Questions')}:</span>
               {SAMPLE_FARMER_QUERIES.map((sample) => (
                 <button
                   key={sample.id}
@@ -431,7 +431,7 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot, presetQuery }: Advi
                 id="farmer-query-input"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Ask about sowing dates, fertilizer dosage, irrigation, pest risks, or weather precautions..."
+                placeholder={t('advisory.queryPlaceholder', 'Ask about sowing dates, fertilizer dosage, irrigation, pest risks, or weather precautions...')}
                 rows={3}
                 aria-required="true"
                 aria-describedby="query-context-hint"
@@ -453,12 +453,12 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot, presetQuery }: Advi
                   {isPipelineRunning ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin text-emerald-300" aria-hidden="true" />
-                      <span>Running Multi-Agent Pipeline...</span>
+                      <span>{t('advisory.runningPipeline', 'Running Multi-Agent Pipeline...')}</span>
                     </>
                   ) : (
                     <>
                       <Send className="w-4 h-4" aria-hidden="true" />
-                      <span>Run Multi-Agent Advisory</span>
+                      <span>{t('advisory.askAdvisory', 'Run Multi-Agent Advisory')}</span>
                     </>
                   )}
                 </button>
@@ -467,6 +467,7 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot, presetQuery }: Advi
           </form>
         </div>
       </div>
+
 
       {/* Multi-Agent Sequential Execution Cards */}
       {(agentState.currentStep > 0 || agentState.advisoryData || agentState.synthesisData) && (
@@ -795,15 +796,16 @@ export function AdvisoryTab({ selectedPlot, setSelectedPlot, presetQuery }: Advi
                     {isSpeaking ? (
                       <>
                         <VolumeX className="w-4 h-4 text-white" aria-hidden="true" />
-                        <span>Stop Speech</span>
+                        <span>{t('advisory.stopSpeech', 'Stop Speech')}</span>
                       </>
                     ) : (
                       <>
                         <Volume2 className="w-4 h-4 text-teal-400" aria-hidden="true" />
-                        <span>Read Aloud</span>
+                        <span>{t('advisory.readAloud', 'Read Aloud')}</span>
                       </>
                     )}
                   </button>
+
                 </div>
               )}
             </div>

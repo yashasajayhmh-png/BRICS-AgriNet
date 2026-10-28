@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { KnowledgeArticle, SupportedLanguage } from '../types';
 import { KNOWLEDGE_ARTICLES } from '../data/knowledgeData';
+import { useI18n } from '../lib/i18nContext';
 import {
   BookOpen,
   Search,
@@ -18,14 +19,16 @@ import {
 } from 'lucide-react';
 
 interface KnowledgeTabProps {
-  currentLanguage: SupportedLanguage;
+  currentLanguage?: SupportedLanguage;
 }
 
 export function KnowledgeTab({ currentLanguage }: KnowledgeTabProps) {
+  const { t } = useI18n();
   const [selectedArticle, setSelectedArticle] = useState<KnowledgeArticle>(KNOWLEDGE_ARTICLES[0]);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [bookmarkedIds, setBookmarkedIds] = useState<string[]>([]);
+
 
   const toggleBookmark = (id: string) => {
     if (bookmarkedIds.includes(id)) {
